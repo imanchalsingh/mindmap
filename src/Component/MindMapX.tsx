@@ -20,9 +20,9 @@ const InteractiveElement: React.FC = () => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [gameState, setGameState] = useState("start"); // start, playing, win
+  const [gameState, setGameState] = useState("start");
   const [showInstructions, setShowInstructions] = useState(true);
-  const [draggedNode, setDraggedNode] = useState<string | null>(null); // ✅ Fixes the issue
+  const [draggedNode, setDraggedNode] = useState<string | null>(null);
 
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
@@ -78,11 +78,10 @@ const InteractiveElement: React.FC = () => {
   // Handle node click
   const handleNodeClick = useCallback(
     (nodeId: string | number) => {
-      // ✅ Explicitly type nodeId
       if (gameState !== "playing") return;
 
       const node = nodes.find((n) => n.id === nodeId);
-      if (!node) return; // Prevent errors if node isn't found
+      if (!node) return;
 
       setActiveNode(nodeId);
 
@@ -97,11 +96,10 @@ const InteractiveElement: React.FC = () => {
   // Add a new node and connect it
   const addNode = useCallback(
     (text: string) => {
-      // ✅ Define type explicitly
       if (!activeNode) return;
 
       const parentNode = nodes.find((n) => n.id === activeNode);
-      if (!parentNode) return; // ✅ Prevent using undefined parentNode
+      if (!parentNode) return;
 
       const angle = Math.random() * Math.PI * 2;
       const distance = 150 * zoomLevel;
@@ -125,9 +123,9 @@ const InteractiveElement: React.FC = () => {
       setEdges((prev) => [
         ...prev,
         {
-          id: `${String(activeNode)}-${newNodeId}`, // ✅ Convert activeNode to a string
-          source: String(activeNode), // ✅ Ensure source is a string
-          target: newNodeId, // This is already a string
+          id: `${String(activeNode)}-${newNodeId}`, 
+          source: String(activeNode),
+          target: newNodeId,
         },
       ]);
 
@@ -177,7 +175,7 @@ const InteractiveElement: React.FC = () => {
 
       if (!ctx) {
         console.error("Failed to get canvas context.");
-        return; // ✅ Prevents errors if ctx is null
+        return;
       }
 
       ctx.drawImage(img, 0, 0);
@@ -201,15 +199,14 @@ const InteractiveElement: React.FC = () => {
       const node = nodes.find((n) => n.id === nodeId);
       if (!node) {
         console.error("Node not found:", nodeId);
-        return; // ✅ Prevents crash if node is undefined
+        return;
       }
 
       if (!svgRef.current) {
         console.error("SVG reference is null.");
-        return; // ✅ Prevents TypeError if svgRef is not yet assigned
+        return;
       }
 
-      // ✅ Now svgRef.current is guaranteed to exist
       const svgRect = svgRef.current.getBoundingClientRect();
       const offsetX = (e.clientX - svgRect.left) / zoomLevel - node.x;
       const offsetY = (e.clientY - svgRect.top) / zoomLevel - node.y;
@@ -224,7 +221,7 @@ const InteractiveElement: React.FC = () => {
   const handleNodeDrag = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
       if (!draggedNode || gameState !== "playing") return;
-      if (!svgRef.current) return; // ✅ Prevents 'null' error
+      if (!svgRef.current) return;
 
       const svgRect = svgRef.current.getBoundingClientRect();
       const x = (e.clientX - svgRect.left) / zoomLevel - dragOffset.x;
@@ -242,6 +239,56 @@ const InteractiveElement: React.FC = () => {
     setDraggedNode(null);
   }, []);
 
+  // Handle node drag start (for touch devices)
+  const handleNodeTouchStart = useCallback(
+    (e: React.TouchEvent<SVGElement>, nodeId: string) => {
+      if (gameState !== "playing") return;
+
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) {
+        console.error("Node not found:", nodeId);
+        return;
+      }
+
+      if (!svgRef.current) {
+        console.error("SVG reference is null.");
+        return;
+      }
+
+      const svgRect = svgRef.current.getBoundingClientRect();
+      const touch = e.touches[0];
+      const offsetX = (touch.clientX - svgRect.left) / zoomLevel - node.x;
+      const offsetY = (touch.clientY - svgRect.top) / zoomLevel - node.y;
+
+      setDraggedNode(nodeId);
+      setDragOffset({ x: offsetX, y: offsetY });
+    },
+    [nodes, gameState, zoomLevel]
+  );
+
+  // Handle node dragging (for touch devices)
+  const handleNodeTouchMove = useCallback(
+    (e: React.TouchEvent<SVGSVGElement>) => {
+      if (!draggedNode || gameState !== "playing") return;
+      if (!svgRef.current) return;
+
+      const svgRect = svgRef.current.getBoundingClientRect();
+      const touch = e.touches[0];
+      const x = (touch.clientX - svgRect.left) / zoomLevel - dragOffset.x;
+      const y = (touch.clientY - svgRect.top) / zoomLevel - dragOffset.y;
+
+      setNodes((prev) =>
+        prev.map((node) => (node.id === draggedNode ? { ...node, x, y } : node))
+      );
+    },
+    [draggedNode, dragOffset, gameState, zoomLevel]
+  );
+
+  // Handle node drag end (for touch devices)
+  const handleNodeTouchEnd = useCallback(() => {
+    setDraggedNode(null);
+  }, []);
+
   // Add mouse event listeners
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -256,16 +303,37 @@ const InteractiveElement: React.FC = () => {
       }
     };
 
-    // ✅ Attach event listeners
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
-      // ✅ Cleanup to prevent memory leaks
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [draggedNode, handleNodeDrag, handleNodeDragEnd]); // ✅ Add dependencies
+  }, [draggedNode, handleNodeDrag, handleNodeDragEnd]); 
+
+  // Add touch event listeners
+  useEffect(() => {
+    const handleTouchMove = (e: TouchEvent) => {
+      if (draggedNode) {
+        handleNodeTouchMove(e as unknown as React.TouchEvent<SVGSVGElement>);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (draggedNode) {
+        handleNodeTouchEnd();
+      }
+    };
+
+    window.addEventListener("touchmove", handleTouchMove);
+    window.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [draggedNode, handleNodeTouchMove, handleNodeTouchEnd]);
 
   // Export mind map as JSON
   const exportAsJSON = useCallback(() => {
@@ -290,7 +358,6 @@ const InteractiveElement: React.FC = () => {
     setGameState("win");
   }, []);
 
-  // Render node
   interface Node {
     id: string;
     text: string;
@@ -298,7 +365,6 @@ const InteractiveElement: React.FC = () => {
     y: number;
     isRoot: boolean;
   }
-  // Render node
   interface Edge {
     id: string;
     source: string;
@@ -318,6 +384,7 @@ const InteractiveElement: React.FC = () => {
           })`}
           onClick={() => handleNodeClick(node.id)}
           onMouseDown={(e) => handleNodeDragStart(e, node.id)}
+          onTouchStart={(e) => handleNodeTouchStart(e, node.id)} // Added touch start
           style={{ cursor: "move" }}
         >
           <rect
@@ -360,7 +427,7 @@ const InteractiveElement: React.FC = () => {
         </g>
       );
     },
-    [activeNode, theme, handleNodeClick, handleNodeDragStart]
+    [activeNode, theme, handleNodeClick, handleNodeDragStart, handleNodeTouchStart]
   );
 
   // Render edge
@@ -566,7 +633,7 @@ const InteractiveElement: React.FC = () => {
                           disabled={!activeNode}
                           onKeyPress={(e) => {
                             if (e.key === "Enter") {
-                              const input = e.target as HTMLInputElement; // ✅ Type assertion
+                              const input = e.target as HTMLInputElement;
                               addCustomNode(input.value);
                             }
                           }}
@@ -577,12 +644,11 @@ const InteractiveElement: React.FC = () => {
                           className="bg-[#F05A5B] hover:bg-[#BF4E30] text-white"
                           disabled={!activeNode}
                           onClick={(e) => {
-                            const target = e.target as HTMLElement; // ✅ Type assertion to HTMLElement
+                            const target = e.target as HTMLElement;
                             const input =
-                              target.previousElementSibling as HTMLInputElement; // ✅ More reliable for elements
+                              target.previousElementSibling as HTMLInputElement;
 
                             if (input && "value" in input) {
-                              // ✅ Ensure it has a value property
                               addCustomNode(input.value);
                               input.value = "";
                             }
