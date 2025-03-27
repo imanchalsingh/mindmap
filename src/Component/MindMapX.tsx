@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { useSpring, animated } from "@react-spring/web";
 
 const InteractiveElement: React.FC = () => {
   const [nodes, setNodes] = useState([
@@ -247,7 +246,7 @@ const InteractiveElement: React.FC = () => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (draggedNode) {
-        handleNodeDrag(e); // ✅ Passes native MouseEvent
+        handleNodeDrag(e as unknown as React.MouseEvent<SVGSVGElement>);
       }
     };
 
@@ -291,24 +290,6 @@ const InteractiveElement: React.FC = () => {
     setGameState("win");
   }, []);
 
-  // Animation for nodes
-  const nodeAnimation = useSpring({
-    from: { opacity: 0, scale: 0.8 },
-    to: { opacity: 1, scale: 1 },
-    config: { tension: 300, friction: 20 },
-  });
-
-  // Button animation
-  const buttonProps = useSpring({
-    from: { scale: 1 },
-    to: async (next) => {
-      while (true) {
-        await next({ scale: 1.05, config: { tension: 300, friction: 10 } });
-        await next({ scale: 1, config: { tension: 300, friction: 10 } });
-      }
-    },
-  });
-
   // Render node
   interface Node {
     id: string;
@@ -339,26 +320,31 @@ const InteractiveElement: React.FC = () => {
           onMouseDown={(e) => handleNodeDragStart(e, node.id)}
           style={{ cursor: "move" }}
         >
-          <animated.rect
+          <rect
             width={nodeSize}
             height={nodeSize * 0.6}
             rx={10}
             fill={node.isRoot ? "#F05A5B" : theme.node}
+            style={{
+              transition: 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out',
+              opacity: 1,
+              transform: 'scale(1)'
+            }}
           />
-          <animated.rect
+          <rect
             width={nodeSize}
             height={nodeSize * 0.6}
             rx={10}
             fill={node.isRoot ? "#F05A5B" : theme.node}
             stroke={isActive ? "#FFFFFF" : theme.nodeStroke}
             strokeWidth={isActive ? 3 : 1}
-            style={
-              {
-                ...nodeAnimation,
-                boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-                filter: "drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))",
-              } as any // ✅ Fix Type Issue
-            }
+            style={{
+              transition: 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out',
+              opacity: 1,
+              transform: 'scale(1)',
+              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+              filter: "drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))"
+            }}
           />
           <text
             x={nodeSize / 2}
@@ -374,7 +360,7 @@ const InteractiveElement: React.FC = () => {
         </g>
       );
     },
-    [activeNode, nodeAnimation, theme, handleNodeClick, handleNodeDragStart]
+    [activeNode, theme, handleNodeClick, handleNodeDragStart]
   );
 
   // Render edge
@@ -485,7 +471,11 @@ const InteractiveElement: React.FC = () => {
                     </Alert>
                   )}
 
-                  <animated.div style={buttonProps}>
+                  <div style={{
+                    transition: 'transform 0.3s ease-in-out',
+                    transform: 'scale(1)',
+                    animation: 'pulse 2s infinite'
+                  }}>
                     <Button
                       style={{ color: "#fff" }}
                       className="w-full bg-[#F05A5B] hover:bg-[#BF4E30] text-white"
@@ -507,7 +497,7 @@ const InteractiveElement: React.FC = () => {
                       </svg>
                       Start Mind Mapping
                     </Button>
-                  </animated.div>
+                  </div>
                 </div>
               )}
 
