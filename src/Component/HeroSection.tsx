@@ -70,13 +70,6 @@ const HeroSection: React.FC = () => {
               >
                 Start Creating Free
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="px-8 py-6 text-lg border-2"
-              >
-                Watch Demo
-              </Button>
             </div>
 
             <div className="mt-12 flex items-center space-x-8">
