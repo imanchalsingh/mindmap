@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import HeroSection from "./Component/HeroSection";
-import InteractiveElement from "./Component/MindMapX";
+import InteractiveElement from "./Component/MindMap";
 
 function App() {
   return (
