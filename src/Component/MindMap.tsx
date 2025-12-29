@@ -1,5 +1,5 @@
 import React from "react";
-import { useState, useRef, useEffect,  useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, RefObject } from "react";
 import MindMapControls from "./MindMapControls";
 import MindMapVisualization from "./MindMapVisualization";
 import SuggestionsPanel from "./SuggestionsPanel";
@@ -65,47 +65,51 @@ const MindMap: React.FC = () => {
     setIsGeneratingSuggestions(true);
     try {
       // Direct OpenAI API call from client-side (make sure to use CORS proxy or backend in production)
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content: "You are a creative brainstorming assistant. Generate 4 relevant ideas or subtopics for a mind map based on the given topic. Return only the suggestions as a JSON array of strings."
-            },
-            {
-              role: "user",
-              content: `Generate 4 mind map suggestions for the topic: "${nodeText}". Return as JSON array only.`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 150,
-        }),
-      });
+      const response = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are a creative brainstorming assistant. Generate 4 relevant ideas or subtopics for a mind map based on the given topic. Return only the suggestions as a JSON array of strings.",
+              },
+              {
+                role: "user",
+                content: `Generate 4 mind map suggestions for the topic: "${nodeText}". Return as JSON array only.`,
+              },
+            ],
+            temperature: 0.7,
+            max_tokens: 150,
+          }),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch AI suggestions');
+        throw new Error("Failed to fetch AI suggestions");
       }
 
       const data = await response.json();
       const content = data.choices[0]?.message?.content;
-      
+
       // Parse the response - OpenAI might return JSON or text
       try {
         const parsed = JSON.parse(content);
         return Array.isArray(parsed) ? parsed : [content];
       } catch {
         // If not JSON, split by lines or commas
-        const suggestions = content.split('\n').filter((s: string) => s.trim());
+        const suggestions = content.split("\n").filter((s: string) => s.trim());
         return suggestions.slice(0, 4);
       }
     } catch (error) {
-      console.error('Error fetching AI suggestions:', error);
+      console.error("Error fetching AI suggestions:", error);
       // Fallback to mock suggestions if API fails
       const suggestionMap: Record<string, string[]> = {
         "Central Idea": [
@@ -120,19 +124,26 @@ const MindMap: React.FC = () => {
           "Visual Organization",
           "Brainstorming Tool",
         ],
-        "Technical Stack": ["Front-end", "Back-end", "Database", "AI Components"],
+        "Technical Stack": [
+          "Front-end",
+          "Back-end",
+          "Database",
+          "AI Components",
+        ],
         "Business Model": ["Freemium", "Subscription", "Enterprise"],
         "Drag & Drop": ["Touch Support", "Multi-select", "Grouping"],
         "Export Options": ["PNG", "PDF", "SVG", "JSON"],
         "AI Components": ["NLP Processing", "Suggestion Engine", "Auto-layout"],
       };
 
-      return suggestionMap[nodeText] || [
-        "New Idea",
-        "Related Concept",
-        "Example",
-        "Sub-category",
-      ];
+      return (
+        suggestionMap[nodeText] || [
+          "New Idea",
+          "Related Concept",
+          "Example",
+          "Sub-category",
+        ]
+      );
     } finally {
       setIsGeneratingSuggestions(false);
     }
@@ -145,7 +156,7 @@ const MindMap: React.FC = () => {
   //     // Using a CORS proxy (you can deploy your own or use a trusted one)
   //     const proxyUrl = import.meta.env.VITE_API_PROXY_URL || 'https://corsproxy.io/?';
   //     const apiUrl = 'https://api.openai.com/v1/chat/completions';
-      
+
   //     const response = await fetch(`${proxyUrl}${encodeURIComponent(apiUrl)}`, {
   //       method: 'POST',
   //       headers: {
@@ -175,7 +186,7 @@ const MindMap: React.FC = () => {
 
   //     const data = await response.json();
   //     const content = data.choices[0]?.message?.content;
-      
+
   //     // Try to parse as JSON, otherwise use as is
   //     try {
   //       return JSON.parse(content);
@@ -230,21 +241,32 @@ const MindMap: React.FC = () => {
             "Visual Organization",
             "Brainstorming Tool",
           ],
-          "Technical Stack": ["Front-end", "Back-end", "Database", "AI Components"],
+          "Technical Stack": [
+            "Front-end",
+            "Back-end",
+            "Database",
+            "AI Components",
+          ],
           "Business Model": ["Freemium", "Subscription", "Enterprise"],
           "Drag & Drop": ["Touch Support", "Multi-select", "Grouping"],
           "Export Options": ["PNG", "PDF", "SVG", "JSON"],
-          "AI Components": ["NLP Processing", "Suggestion Engine", "Auto-layout"],
+          "AI Components": [
+            "NLP Processing",
+            "Suggestion Engine",
+            "Auto-layout",
+          ],
         };
-        
-        setSuggestions(suggestionMap[node.text] || [
-          "New Idea",
-          "Related Concept",
-          "Example",
-          "Sub-category",
-        ]);
+
+        setSuggestions(
+          suggestionMap[node.text] || [
+            "New Idea",
+            "Related Concept",
+            "Example",
+            "Sub-category",
+          ]
+        );
       }
-      
+
       setShowSuggestions(true);
     },
     [nodes, gameState, generateAISuggestions, isDragging]
@@ -535,9 +557,18 @@ const MindMap: React.FC = () => {
 
   // Color palette
   const colorPalette = [
-    "#F05A5B", "#4A90E2", "#7B61FF", "#38A169", "#ED8936",
-    "#9F7AEA", "#4299E1", "#48BB78", "#F6AD55", "#F56565",
-    "#BF4E30", "#3182CE",
+    "#F05A5B",
+    "#4A90E2",
+    "#7B61FF",
+    "#38A169",
+    "#ED8936",
+    "#9F7AEA",
+    "#4299E1",
+    "#48BB78",
+    "#F6AD55",
+    "#F56565",
+    "#BF4E30",
+    "#3182CE",
   ];
 
   return (
@@ -546,7 +577,8 @@ const MindMap: React.FC = () => {
         {/* Header */}
         <div className="mb-4 sm:mb-6 text-center">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-[#F05A5B] to-[#BF4E30] bg-clip-text text-transparent">
-            MindMapX Pro {import.meta.env.VITE_OPENAI_API_KEY ? "(AI-Powered)" : ""}
+            MindMapX Pro{" "}
+            {import.meta.env.VITE_OPENAI_API_KEY ? "(AI-Powered)" : ""}
           </h1>
           <p className="text-gray-300 text-sm sm:text-base mt-1 sm:mt-2">
             Visualize ideas, connect thoughts, and unlock creativity
@@ -592,7 +624,7 @@ const MindMap: React.FC = () => {
             {/* Mind Map Visualization */}
             <MindMapVisualization
               ref={svgRef}
-              containerRef={containerRef}
+              containerRef={containerRef as RefObject<HTMLDivElement>}
               nodes={nodes}
               edges={edges}
               activeNode={activeNode}
