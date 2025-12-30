@@ -12,33 +12,32 @@ const HeroSection: React.FC = () => {
   const screenshots = [
     {
       id: 1,
-      title: "Interactive Mind Map Editor",
-      description: "Create and organize nodes with drag & drop interface",
+      title: "Hover Tooltip & Drag & Drop",
+      description: "Intuitive node manipulation with real-time tooltips",
       color: "from-[#F05A5B] to-[#BF4E30]",
+      imageUrl: "/screenshots/hover-tooltip.png",
     },
     {
       id: 2,
       title: "Color Customization",
       description: "Change colors of nodes and connections with one click",
       color: "from-[#4ECDC4] to-[#2C7873]",
+      imageUrl: "/screenshots/editNodeDetails.png",
     },
     {
       id: 3,
       title: "Export & Import",
       description: "Export as PNG or JSON, import existing projects",
       color: "from-[#45B7D1] to-[#96CEB4]",
+      imageUrl: "/screenshots/ImportExport.png",
     },
     {
       id: 4,
-      title: "AI Suggestions",
-      description: "Get intelligent expansion ideas from AI",
-      color: "from-[#FF6B6B] to-[#FF8E53]",
-    },
-    {
-      id: 5,
-      title: "Context Menu Options",
-      description: "Right-click for advanced editing options",
+      title: "Expand & Collapse Nodes",
+      description:
+        "Focus on specific sections by expanding or collapsing nodes",
       color: "from-[#9D50BB] to-[#6E48AA]",
+      imageUrl: "/screenshots/collapseAndExpnad.png",
     },
   ];
 
@@ -317,19 +316,47 @@ const HeroSection: React.FC = () => {
                         index === currentSlide ? "opacity-100" : "opacity-0"
                       }`}
                     >
-                      <div
-                        className={`h-64 bg-gradient-to-br ${screenshot.color} flex items-center justify-center`}
-                      >
-                        <div className="text-center p-8">
-                          <div className="text-6xl mb-4">📊</div>
-                          <h3 className="text-2xl font-bold text-white mb-2">
+                      {/* Image Container */}
+                      <div className="h-64 relative overflow-hidden bg-gray-100 dark:bg-gray-900">
+                        {/* Fallback gradient background in case image fails to load */}
+                        <div
+                          className={`absolute inset-0 bg-gradient-to-br ${screenshot.color} opacity-20`}
+                        ></div>
+
+                        {/* Actual Image */}
+                        <img
+                          src={screenshot.imageUrl}
+                          alt={screenshot.title}
+                          className="w-full h-full object-contain p-4 relative z-10"
+                          onError={(e) => {
+                            // Fallback if image fails to load
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = "none";
+                          }}
+                        />
+
+                        {/* Image overlay with title */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 z-20">
+                          <h3 className="text-xl font-bold text-white mb-1">
                             {screenshot.title}
                           </h3>
-                          <p className="text-white/90">
+                          <p className="text-white/80 text-sm">
+                            {screenshot.description}
+                          </p>
+                        </div>
+
+                        {/* Fallback content (shown only if image fails to load) */}
+                        <div className="absolute inset-0 hidden items-center justify-center flex-col p-8 text-center">
+                          <div className="text-6xl mb-4">📊</div>
+                          <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                            {screenshot.title}
+                          </h3>
+                          <p className="text-gray-600 dark:text-gray-300">
                             {screenshot.description}
                           </p>
                         </div>
                       </div>
+
                       <div className="p-6">
                         <div className="flex items-center justify-between">
                           <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -338,7 +365,10 @@ const HeroSection: React.FC = () => {
                           <div className="flex items-center space-x-2">
                             <button
                               onClick={() => setIsPlaying(!isPlaying)}
-                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              aria-label={
+                                isPlaying ? "Pause slideshow" : "Play slideshow"
+                              }
                             >
                               {isPlaying ? (
                                 <Pause size={20} />
@@ -348,13 +378,15 @@ const HeroSection: React.FC = () => {
                             </button>
                             <button
                               onClick={prevSlide}
-                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              aria-label="Previous screenshot"
                             >
                               <ChevronLeft size={20} />
                             </button>
                             <button
                               onClick={nextSlide}
-                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              aria-label="Next screenshot"
                             >
                               <ChevronRight size={20} />
                             </button>
@@ -365,34 +397,85 @@ const HeroSection: React.FC = () => {
                   ))}
                 </div>
 
-                {/* Dots indicator */}
-                <div className="flex justify-center space-x-2 pb-6">
-                  {screenshots.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentSlide(index)}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        index === currentSlide
-                          ? "bg-[#F05A5B] w-6"
-                          : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400"
-                      }`}
-                    />
-                  ))}
+                <div className="p-6">
+                  <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+                    Screenshot Highlights
+                  </h4>
+                  <ul className="space-y-2">
+                    {[
+                      "Intuitive drag & drop interface",
+                      "Customizable node colors",
+                      "Expand and collapse sections",
+                      "Seamless export options",
+                    ].map((item, index) => (
+                      <li
+                        key={index}
+                        className="flex items-center text-gray-600 dark:text-gray-300"
+                      >
+                        <span className="mr-3 text-[#4ECDC4]">✓</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             </div>
 
-            {/* Video Section */}
+            {/* Video Section with thumbnail preview */}
             <div className="relative group">
               <div className="absolute -inset-4 bg-gradient-to-r from-[#4ECDC4] to-[#45B7D1] rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
 
               <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
-                <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center relative">
-                  {/* Play button overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-r from-[#F05A5B] to-[#BF4E30] flex items-center justify-center cursor-pointer hover:scale-110 transform transition-transform">
-                      <Play size={32} className="text-white ml-1" />
+                <div className="aspect-video relative overflow-hidden bg-gradient-to-br from-gray-900 to-gray-800">
+                  {/* Video Thumbnail/Preview */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
+                    <div className="relative">
+                      {/* Optional: Add your video thumbnail image */}
+                      <img
+                        src="/video-thumbnail.jpg"
+                        alt="MindMapX Tutorial Thumbnail"
+                        className="opacity-50 w-full h-full object-cover"
+                      />
+
+                      {/* Play button */}
+                      <button
+                        className="absolute inset-0 flex items-center justify-center"
+                        onClick={() => {
+                          const videoContainer =
+                            document.getElementById("video-player");
+                          const video = document.getElementById(
+                            "mindmap-video"
+                          ) as HTMLVideoElement;
+
+                          if (videoContainer && video) {
+                            // Show video player
+                            videoContainer.classList.remove("hidden");
+                            video.play();
+                          }
+                        }}
+                        aria-label="Play MindMapX Tutorial"
+                      >
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-r from-[#F05A5B] to-[#BF4E30] flex items-center justify-center cursor-pointer hover:scale-110 transform transition-transform shadow-2xl">
+                          <Play size={32} className="text-white ml-1" />
+                        </div>
+                      </button>
                     </div>
+                  </div>
+
+                  {/* Video Player (hidden initially) */}
+                  <div id="video-player" className="hidden absolute inset-0">
+                    <video
+                      id="mindmap-video"
+                      className="w-full h-full object-cover"
+                      controls
+                      playsInline
+                    >
+                      <source
+                        src="/demoVideo/demoVideoMindMapX.mp4"
+                        type="video/mp4"
+                      />
+                      Your browser does not support the video tag.
+                    </video>
                   </div>
 
                   {/* Video info */}
@@ -405,13 +488,13 @@ const HeroSection: React.FC = () => {
                     </p>
                     <div className="flex items-center space-x-4 mt-3">
                       <div className="flex items-center text-white/70 text-sm">
-                        <span className="mr-1">⏱️</span> 5:30
+                        <span className="mr-1">⏱️</span> 2:02
                       </div>
                       <div className="flex items-center text-white/70 text-sm">
                         <span className="mr-1">📺</span> 1080p
                       </div>
                       <div className="flex items-center text-white/70 text-sm">
-                        <span className="mr-1">🔊</span> English
+                        <span className="mr-1">🔊</span> Demo
                       </div>
                     </div>
                   </div>
@@ -591,7 +674,7 @@ const HeroSection: React.FC = () => {
                 size="lg"
                 className="bg-white text-gray-900 hover:bg-gray-100 hover:scale-105 transform transition-all duration-300 px-8 py-6 text-lg font-semibold rounded-xl"
               >
-                🚀 Start Creating for Free
+                Start Creating for Free
               </Button>
               <p className="text-gray-400 text-sm mt-4">
                 No credit card required • Free forever plan
