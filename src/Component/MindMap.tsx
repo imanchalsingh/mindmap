@@ -478,6 +478,11 @@ const MindMap: React.FC = () => {
     setEditDialogOpen(false);
   }, [editingNode, editText, editColor, editDescription, editSize, editShape]);
 
+  // zoom change
+  const zoomChange = useCallback((newZoomLevel: number) => {
+    setZoomLevel(newZoomLevel);
+  }, []);
+
   // Delete node
   const deleteNode = useCallback(
     (nodeId: string) => {
@@ -897,110 +902,113 @@ const MindMap: React.FC = () => {
             )}
 
             {/* Mind Map Visualization */}
-            <MindMapVisualization
-              ref={svgRef}
-              containerRef={containerRef as RefObject<HTMLDivElement>}
-              nodes={nodes}
-              edges={edges}
-              activeNode={activeNode}
-              draggedNode={draggedNode}
-              zoomLevel={zoomLevel}
-              panPosition={panPosition}
-              gameState={gameState}
-              nodeColors={nodeColors}
-              theme={theme}
-              isMobile={false}
-              onNodeClick={handleNodeClick}
-              onNodeContextMenu={handleNodeContextMenu}
-              onNodeDragStart={handleNodeDragStart}
-              onNodeDragEnd={handleNodeDragEnd}
-              onEditNode={editNode}
-              onDeleteNode={deleteNode}
-              onPanView={panView}
-            />
+            <div className="w-full h-[500px] md:h-[600px] lg:h-[700px]">
+              <MindMapVisualization
+                ref={svgRef}
+                containerRef={containerRef as RefObject<HTMLDivElement>}
+                nodes={nodes}
+                edges={edges}
+                activeNode={activeNode}
+                draggedNode={draggedNode}
+                zoomLevel={zoomLevel}
+                panPosition={panPosition}
+                gameState={gameState}
+                nodeColors={nodeColors}
+                theme={theme}
+                isMobile={false}
+                onNodeClick={handleNodeClick}
+                onNodeContextMenu={handleNodeContextMenu}
+                onNodeDragStart={handleNodeDragStart}
+                onNodeDragEnd={handleNodeDragEnd}
+                onEditNode={editNode}
+                onDeleteNode={deleteNode}
+                onPanView={panView}
+                onZoomChange={zoomChange}
+              />
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
-              <div
-                className={`p-3 md:p-4 rounded-lg ${
-                  theme === "dark" ? "bg-gray-800" : "bg-white"
-                } border ${
-                  theme === "dark" ? "border-gray-700" : "border-gray-200"
-                }`}
-              >
-                <div className="text-xl md:text-2xl font-bold text-[#F05A5B]">
-                  {nodes.length}
-                </div>
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
                 <div
-                  className={`text-xs md:text-sm ${
-                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  className={`p-3 md:p-4 rounded-lg ${
+                    theme === "dark" ? "bg-gray-800" : "bg-white"
+                  } border ${
+                    theme === "dark" ? "border-gray-700" : "border-gray-200"
                   }`}
                 >
-                  Total Nodes
-                </div>
-              </div>
-              <div
-                className={`p-3 md:p-4 rounded-lg ${
-                  theme === "dark" ? "bg-gray-800" : "bg-white"
-                } border ${
-                  theme === "dark" ? "border-gray-700" : "border-gray-200"
-                }`}
-              >
-                <div className="text-xl md:text-2xl font-bold text-[#4A90E2]">
-                  {edges.length}
+                  <div className="text-xl md:text-2xl font-bold text-[#F05A5B]">
+                    {nodes.length}
+                  </div>
+                  <div
+                    className={`text-xs md:text-sm ${
+                      theme === "dark" ? "text-gray-400" : "text-gray-500"
+                    }`}
+                  >
+                    Total Nodes
+                  </div>
                 </div>
                 <div
-                  className={`text-xs md:text-sm ${
-                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  className={`p-3 md:p-4 rounded-lg ${
+                    theme === "dark" ? "bg-gray-800" : "bg-white"
+                  } border ${
+                    theme === "dark" ? "border-gray-700" : "border-gray-200"
                   }`}
                 >
-                  Connections
-                </div>
-              </div>
-              <div
-                className={`p-3 md:p-4 rounded-lg ${
-                  theme === "dark" ? "bg-gray-800" : "bg-white"
-                } border ${
-                  theme === "dark" ? "border-gray-700" : "border-gray-200"
-                }`}
-              >
-                <div className="text-xl md:text-2xl font-bold text-[#38A169]">
-                  {Math.max(
-                    ...nodes.map((n) => {
-                      let depth = 0;
-                      let node = n;
-                      while (node.parent) {
-                        depth++;
-                        node = nodes.find((nn) => nn.id === node.parent)!;
-                      }
-                      return depth;
-                    })
-                  ) + 1}
+                  <div className="text-xl md:text-2xl font-bold text-[#4A90E2]">
+                    {edges.length}
+                  </div>
+                  <div
+                    className={`text-xs md:text-sm ${
+                      theme === "dark" ? "text-gray-400" : "text-gray-500"
+                    }`}
+                  >
+                    Connections
+                  </div>
                 </div>
                 <div
-                  className={`text-xs md:text-sm ${
-                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  className={`p-3 md:p-4 rounded-lg ${
+                    theme === "dark" ? "bg-gray-800" : "bg-white"
+                  } border ${
+                    theme === "dark" ? "border-gray-700" : "border-gray-200"
                   }`}
                 >
-                  Max Depth
-                </div>
-              </div>
-              <div
-                className={`p-3 md:p-4 rounded-lg ${
-                  theme === "dark" ? "bg-gray-800" : "bg-white"
-                } border ${
-                  theme === "dark" ? "border-gray-700" : "border-gray-200"
-                }`}
-              >
-                <div className="text-xl md:text-2xl font-bold text-[#ED8936]">
-                  {nodes.filter((n) => n.expanded).length}
+                  <div className="text-xl md:text-2xl font-bold text-[#38A169]">
+                    {Math.max(
+                      ...nodes.map((n) => {
+                        let depth = 0;
+                        let node = n;
+                        while (node.parent) {
+                          depth++;
+                          node = nodes.find((nn) => nn.id === node.parent)!;
+                        }
+                        return depth;
+                      })
+                    ) + 1}
+                  </div>
+                  <div
+                    className={`text-xs md:text-sm ${
+                      theme === "dark" ? "text-gray-400" : "text-gray-500"
+                    }`}
+                  >
+                    Max Depth
+                  </div>
                 </div>
                 <div
-                  className={`text-xs md:text-sm ${
-                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  className={`p-3 md:p-4 rounded-lg ${
+                    theme === "dark" ? "bg-gray-800" : "bg-white"
+                  } border ${
+                    theme === "dark" ? "border-gray-700" : "border-gray-200"
                   }`}
                 >
-                  Expanded
+                  <div className="text-xl md:text-2xl font-bold text-[#ED8936]">
+                    {nodes.filter((n) => n.expanded).length}
+                  </div>
+                  <div
+                    className={`text-xs md:text-sm ${
+                      theme === "dark" ? "text-gray-400" : "text-gray-500"
+                    }`}
+                  >
+                    Expanded
+                  </div>
                 </div>
               </div>
             </div>

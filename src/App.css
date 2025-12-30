@@ -57,3 +57,8 @@ body {
 .node-selected {
   animation: node-pulse 2s infinite;
 }
+@media (max-width: 768px) {
+  .mindmap-container {
+    -webkit-tap-highlight-color: transparent;
+  }
+}

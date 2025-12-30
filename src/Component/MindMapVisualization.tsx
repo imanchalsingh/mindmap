@@ -1,4 +1,10 @@
-import React, { forwardRef, useCallback, useState } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useState,
+  useRef,
+  useEffect,
+} from "react";
 
 interface Node {
   id: string;
@@ -54,6 +60,7 @@ interface MindMapVisualizationProps {
   onEditNode: (nodeId: string) => void;
   onDeleteNode: (nodeId: string) => void;
   onPanView: (dx: number, dy: number) => void;
+  onZoomChange: (zoom: number) => void;
 }
 
 const MindMapVisualization = forwardRef<
@@ -71,27 +78,66 @@ const MindMapVisualization = forwardRef<
       panPosition,
       nodeColors,
       theme,
+      isMobile,
       onNodeClick,
       onNodeContextMenu,
       onNodeDragStart,
       onNodeDragEnd,
       onEditNode,
       onPanView,
+      onZoomChange,
     },
     ref
   ) => {
     const [hoveredNode, setHoveredNode] = useState<string | null>(null);
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+    const [touchStart, setTouchStart] = useState<{
+      x: number;
+      y: number;
+      distance: number;
+    } | null>(null);
+    const [containerSize, setContainerSize] = useState({
+      width: 1000,
+      height: 700,
+    });
+    const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
-    const handleMouseDown = (e: React.MouseEvent) => {
-      if (e.button === 0 && e.ctrlKey) {
-        e.preventDefault();
-        setIsPanning(true);
-        setPanStart({ x: e.clientX, y: e.clientY });
+    // Handle container resize for responsiveness
+    useEffect(() => {
+      if (!containerRef.current) return;
+
+      const updateSize = () => {
         if (containerRef.current) {
-          containerRef.current.style.cursor = "grabbing";
+          const { width, height } =
+            containerRef.current.getBoundingClientRect();
+          setContainerSize({
+            width: Math.max(width, 1000),
+            height: Math.max(height, 700),
+          });
         }
+      };
+
+      // Initial size
+      updateSize();
+
+      // Create ResizeObserver
+      resizeObserverRef.current = new ResizeObserver(updateSize);
+      resizeObserverRef.current.observe(containerRef.current);
+
+      return () => {
+        if (resizeObserverRef.current) {
+          resizeObserverRef.current.disconnect();
+        }
+      };
+    }, [containerRef]);
+
+    // Mouse event handlers
+    const handleMouseDown = (e: React.MouseEvent) => {
+      // Left click + Ctrl or Middle click for panning
+      if ((e.button === 0 && (e.ctrlKey || e.metaKey)) || e.button === 1) {
+        e.preventDefault();
+        startPanning(e.clientX, e.clientY);
       }
     };
 
@@ -106,15 +152,122 @@ const MindMapVisualization = forwardRef<
 
     const handleMouseUp = () => {
       if (isPanning) {
-        setIsPanning(false);
+        stopPanning();
+      }
+    };
+
+    // Touch event handlers
+    const handleTouchStart = (e: React.TouchEvent) => {
+      e.preventDefault();
+
+      if (e.touches.length === 1) {
+        // Single touch - start panning or dragging
+        const touch = e.touches[0];
+        setPanStart({ x: touch.clientX, y: touch.clientY });
+
+        // Check if we touched a node (this would be handled by node's touchStart)
+        // If not on a node, start panning
+        setIsPanning(true);
         if (containerRef.current) {
-          containerRef.current.style.cursor = "default";
+          containerRef.current.style.cursor = "grabbing";
         }
+      } else if (e.touches.length === 2) {
+        // Two touches - prepare for pinch zoom
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const distance = Math.sqrt(
+          Math.pow(touch2.clientX - touch1.clientX, 2) +
+            Math.pow(touch2.clientY - touch1.clientY, 2)
+        );
+        setTouchStart({
+          x: (touch1.clientX + touch2.clientX) / 2,
+          y: (touch1.clientY + touch2.clientY) / 2,
+          distance,
+        });
+      }
+    };
+    // handle touch move event
+    const handleTouchMove = (e: React.TouchEvent) => {
+      e.preventDefault();
+
+      if (e.touches.length === 1 && isPanning) {
+        // Single touch panning
+        const touch = e.touches[0];
+        const dx = touch.clientX - panStart.x;
+        const dy = touch.clientY - panStart.y;
+        onPanView(dx, dy);
+        setPanStart({ x: touch.clientX, y: touch.clientY });
+      } else if (e.touches.length === 2 && touchStart) {
+        // Pinch zoom
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const currentDistance = Math.sqrt(
+          Math.pow(touch2.clientX - touch1.clientX, 2) +
+            Math.pow(touch2.clientY - touch1.clientY, 2)
+        );
+
+        // FIX HERE: Change 'zoomChange' to 'scaleChange' or fix the variable name
+        const scaleChange = currentDistance / touchStart.distance;
+        const newZoom = Math.max(0.1, Math.min(3, zoomLevel * scaleChange));
+        onZoomChange?.(newZoom);
+
+        // Update touch start for continuous zoom
+        setTouchStart({
+          x: (touch1.clientX + touch2.clientX) / 2,
+          y: (touch1.clientY + touch2.clientY) / 2,
+          distance: currentDistance,
+        });
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (isPanning) {
+        stopPanning();
+      }
+      if (touchStart) {
+        setTouchStart(null);
+      }
+    };
+
+    // Wheel zoom for both mouse and touchpad
+    const handleWheel = (e: React.WheelEvent) => {
+      e.preventDefault();
+
+      // Use ctrlKey for Windows/Linux, metaKey for Mac
+      if (e.ctrlKey || e.metaKey) {
+        const zoomFactor = 0.01;
+        const delta = e.deltaY > 0 ? -zoomFactor : zoomFactor;
+        const newZoom = Math.max(0.1, Math.min(3, zoomLevel + delta));
+        onZoomChange(newZoom);
+      } else {
+        // If not zooming, pan with wheel
+        onPanView(-e.deltaX * 0.5, -e.deltaY * 0.5);
+      }
+    };
+
+    const startPanning = (x: number, y: number) => {
+      setIsPanning(true);
+      setPanStart({ x, y });
+      if (containerRef.current) {
+        containerRef.current.style.cursor = "grabbing";
+      }
+    };
+
+    const stopPanning = () => {
+      setIsPanning(false);
+      if (containerRef.current) {
+        containerRef.current.style.cursor = "default";
       }
     };
 
     const getNodeSize = (node: Node) => {
-      const baseSize = node.isRoot ? 120 : 100;
+      const baseSize = isMobile
+        ? node.isRoot
+          ? 80
+          : 60
+        : node.isRoot
+        ? 120
+        : 100;
       const sizeMultiplier = {
         small: 0.8,
         medium: 1,
@@ -175,44 +328,42 @@ const MindMapVisualization = forwardRef<
         const centerX = width / 2;
         const centerY = height / 2;
 
-        // Diamond points (centered properly)
+        // Diamond points
         const diamondPoints = `
-      ${centerX},${centerY - height / 2}
-      ${centerX + width / 2},${centerY}
-      ${centerX},${centerY + height / 2}
-      ${centerX - width / 2},${centerY}
-    `;
+          ${centerX},${centerY - height / 2}
+          ${centerX + width / 2},${centerY}
+          ${centerX},${centerY + height / 2}
+          ${centerX - width / 2},${centerY}
+        `;
 
         // Hexagon points
         const hexagonPoints = `
-      ${centerX - width / 3},${centerY - height / 2}
-      ${centerX + width / 3},${centerY - height / 2}
-      ${centerX + width / 2},${centerY}
-      ${centerX + width / 3},${centerY + height / 2}
-      ${centerX - width / 3},${centerY + height / 2}
-      ${centerX - width / 2},${centerY}
-    `;
+          ${centerX - width / 3},${centerY - height / 2}
+          ${centerX + width / 3},${centerY - height / 2}
+          ${centerX + width / 2},${centerY}
+          ${centerX + width / 3},${centerY + height / 2}
+          ${centerX - width / 3},${centerY + height / 2}
+          ${centerX - width / 2},${centerY}
+        `;
 
         // Octagon points
         const octagonPoints = `
-      ${centerX - width / 3},${centerY - height / 2}
-      ${centerX + width / 3},${centerY - height / 2}
-      ${centerX + width / 2},${centerY - height / 4}
-      ${centerX + width / 2},${centerY + height / 4}
-      ${centerX + width / 3},${centerY + height / 2}
-      ${centerX - width / 3},${centerY + height / 2}
-      ${centerX - width / 2},${centerY + height / 4}
-      ${centerX - width / 2},${centerY - height / 4}
-    `;
+          ${centerX - width / 3},${centerY - height / 2}
+          ${centerX + width / 3},${centerY - height / 2}
+          ${centerX + width / 2},${centerY - height / 4}
+          ${centerX + width / 2},${centerY + height / 4}
+          ${centerX + width / 3},${centerY + height / 2}
+          ${centerX - width / 3},${centerY + height / 2}
+          ${centerX - width / 2},${centerY + height / 4}
+          ${centerX - width / 2},${centerY - height / 4}
+        `;
 
         // Triangle points
         const trianglePoints = `
-      ${centerX},${centerY - height / 2}
-      ${centerX + width / 2},${centerY + height / 2}
-      ${centerX - width / 2},${centerY + height / 2}
-    `;
-
-        // Ellipse (using ellipse element instead of polygon)
+          ${centerX},${centerY - height / 2}
+          ${centerX + width / 2},${centerY + height / 2}
+          ${centerX - width / 2},${centerY + height / 2}
+        `;
 
         const renderShape = () => {
           const shapeProps = {
@@ -224,6 +375,13 @@ const MindMapVisualization = forwardRef<
               : "transparent",
             strokeWidth: isActive ? 3 : isHovered ? 2 : 0,
             onClick: () => onNodeClick(node.id),
+            onTouchStart: (e: React.TouchEvent) => {
+              e.stopPropagation();
+              onNodeDragStart(e, node.id);
+            },
+            style: {
+              touchAction: "none", // Prevent browser touch actions
+            },
           };
 
           switch (node.shape) {
@@ -279,6 +437,10 @@ const MindMapVisualization = forwardRef<
               node.y - height / 2
             })`}
             onMouseDown={(e) => onNodeDragStart(e, node.id)}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+              onNodeDragStart(e, node.id);
+            }}
             onMouseEnter={() => setHoveredNode(node.id)}
             onMouseLeave={() => setHoveredNode(null)}
             onContextMenu={(e) => onNodeContextMenu(e, node.id)}
@@ -297,7 +459,9 @@ const MindMapVisualization = forwardRef<
               textAnchor="middle"
               dominantBaseline="middle"
               fill="#FFFFFF"
-              fontSize={node.isRoot ? 14 : 12}
+              fontSize={
+                isMobile ? (node.isRoot ? 12 : 10) : node.isRoot ? 14 : 12
+              }
               fontWeight={node.isRoot ? "bold" : "normal"}
               className="select-none"
               style={{
@@ -305,17 +469,17 @@ const MindMapVisualization = forwardRef<
                 textShadow: "1px 1px 2px rgba(0,0,0,0.5)",
               }}
             >
-              {node.text.length > 15
-                ? node.text.substring(0, 15) + "..."
+              {node.text.length > (isMobile ? 10 : 15)
+                ? node.text.substring(0, isMobile ? 10 : 15) + "..."
                 : node.text}
             </text>
 
             {/* Collapse indicator */}
             {isCollapsed && (
               <circle
-                cx={width - 10}
-                cy={10}
-                r={6}
+                cx={width - (isMobile ? 8 : 10)}
+                cy={isMobile ? 8 : 10}
+                r={isMobile ? 4 : 6}
                 fill="#F59E0B"
                 stroke="#FFFFFF"
                 strokeWidth="1"
@@ -329,23 +493,27 @@ const MindMapVisualization = forwardRef<
                   e.stopPropagation();
                   onEditNode(node.id);
                 }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  onEditNode(node.id);
+                }}
                 style={{ cursor: "pointer" }}
                 className="hover:opacity-80 transition-opacity"
               >
                 <circle
                   cx={width}
                   cy={height}
-                  r={10}
+                  r={isMobile ? 8 : 10}
                   fill={nodeColors.selected}
                   stroke="#FFFFFF"
                   strokeWidth="2"
                 />
                 <text
                   x={width}
-                  y={height + 3}
+                  y={height + (isMobile ? 2 : 3)}
                   textAnchor="middle"
                   fill="#FFFFFF"
-                  fontSize={10}
+                  fontSize={isMobile ? 8 : 10}
                   fontWeight="bold"
                   style={{ pointerEvents: "none" }}
                 >
@@ -354,8 +522,8 @@ const MindMapVisualization = forwardRef<
               </g>
             )}
 
-            {/* Hover tooltip */}
-            {isHovered && node.description && (
+            {/* Hover tooltip - only on desktop */}
+            {!isMobile && isHovered && node.description && (
               <g>
                 <rect
                   x={width + 10}
@@ -385,20 +553,20 @@ const MindMapVisualization = forwardRef<
             {/* Children count badge */}
             {node.children && node.children.length > 0 && (
               <circle
-                cx={width - 10}
-                cy={height - 10}
-                r={8}
+                cx={width - (isMobile ? 8 : 10)}
+                cy={height - (isMobile ? 8 : 10)}
+                r={isMobile ? 6 : 8}
                 fill={theme === "dark" ? "#374151" : "#F3F4F6"}
                 stroke={theme === "dark" ? "#4B5563" : "#D1D5DB"}
                 strokeWidth="1"
               >
                 <title>{node.children.length} children</title>
                 <text
-                  x={width - 10}
-                  y={height - 6}
+                  x={width - (isMobile ? 8 : 10)}
+                  y={height - (isMobile ? 4 : 6)}
                   textAnchor="middle"
                   fill={theme === "dark" ? "#E5E7EB" : "#374151"}
-                  fontSize={8}
+                  fontSize={isMobile ? 7 : 8}
                   fontWeight="bold"
                   style={{ pointerEvents: "none" }}
                 >
@@ -415,6 +583,7 @@ const MindMapVisualization = forwardRef<
         draggedNode,
         theme,
         nodeColors,
+        isMobile,
         onNodeClick,
         onNodeContextMenu,
         onNodeDragStart,
@@ -427,27 +596,36 @@ const MindMapVisualization = forwardRef<
         className="flex-1 border rounded-lg overflow-hidden"
         style={{
           background: theme === "dark" ? "#111827" : "#F9FAFB",
-          height: "600px",
+          height: "100%",
+          minHeight: "500px",
         }}
       >
         <div
           ref={containerRef}
-          className="relative h-full"
+          className="relative w-full h-full overflow-hidden"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          style={{ cursor: isPanning ? "grabbing" : "default" }}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{
+            cursor: isPanning ? "grabbing" : "default",
+            touchAction: "none", // Prevent browser touch actions
+          }}
         >
           <svg
             ref={ref}
-            width="1000"
-            height="700"
+            width={containerSize.width}
+            height={containerSize.height}
             style={{
               transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomLevel})`,
               transformOrigin: "0 0",
             }}
             onMouseUp={onNodeDragEnd}
+            onTouchEnd={onNodeDragEnd}
           >
             <defs>
               <filter id="glow">
@@ -482,13 +660,17 @@ const MindMapVisualization = forwardRef<
           </svg>
 
           {/* Controls */}
-          <div className="absolute bottom-4 left-4 flex gap-2">
+          <div
+            className={`absolute ${
+              isMobile ? "bottom-2 left-2" : "bottom-4 left-4"
+            } flex flex-wrap gap-2`}
+          >
             <div
               className={`px-3 py-2 rounded-lg ${
                 theme === "dark" ? "bg-gray-800" : "bg-white"
               } border ${
                 theme === "dark" ? "border-gray-700" : "border-gray-200"
-              }`}
+              } shadow-lg`}
             >
               <div
                 className={`text-sm ${
@@ -498,22 +680,73 @@ const MindMapVisualization = forwardRef<
                 Zoom: {Math.round(zoomLevel * 100)}%
               </div>
             </div>
-            <div
-              className={`px-3 py-2 rounded-lg ${
-                theme === "dark" ? "bg-gray-800" : "bg-white"
-              } border ${
-                theme === "dark" ? "border-gray-700" : "border-gray-200"
-              }`}
-            >
+            {!isMobile && (
               <div
-                className={`text-sm ${
-                  theme === "dark" ? "text-gray-300" : "text-gray-600"
-                }`}
+                className={`px-3 py-2 rounded-lg ${
+                  theme === "dark" ? "bg-gray-800" : "bg-white"
+                } border ${
+                  theme === "dark" ? "border-gray-700" : "border-gray-200"
+                } shadow-lg`}
               >
-                Ctrl+Scroll to zoom | Ctrl+Drag to pan
+                <div
+                  className={`text-sm ${
+                    theme === "dark" ? "text-gray-300" : "text-gray-600"
+                  }`}
+                >
+                  Ctrl+Scroll to zoom | Ctrl+Drag to pan
+                </div>
+              </div>
+            )}
+            {isMobile && (
+              <div
+                className={`px-3 py-2 rounded-lg ${
+                  theme === "dark" ? "bg-gray-800" : "bg-white"
+                } border ${
+                  theme === "dark" ? "border-gray-700" : "border-gray-200"
+                } shadow-lg`}
+              >
+                <div
+                  className={`text-sm ${
+                    theme === "dark" ? "text-gray-300" : "text-gray-600"
+                  }`}
+                >
+                  Pinch to zoom | Drag to pan
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile gesture hint */}
+          {isMobile && (
+            <div className="absolute top-4 right-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center">
+                  <div className="w-6 h-6 rounded-full border border-gray-400 flex items-center justify-center">
+                    <span className="text-xs">👆</span>
+                  </div>
+                  <span
+                    className={`ml-1 text-xs ${
+                      theme === "dark" ? "text-gray-300" : "text-gray-600"
+                    }`}
+                  >
+                    Drag node
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-6 h-6 rounded-full border border-gray-400 flex items-center justify-center">
+                    <span className="text-xs">🤏</span>
+                  </div>
+                  <span
+                    className={`ml-1 text-xs ${
+                      theme === "dark" ? "text-gray-300" : "text-gray-600"
+                    }`}
+                  >
+                    Zoom
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
