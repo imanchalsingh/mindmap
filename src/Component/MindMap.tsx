@@ -812,7 +812,7 @@ const MindMap: React.FC = () => {
     <div
       className={`min-h-screen ${
         theme === "dark" ? "bg-gray-900" : "bg-gray-50"
-      } p-4 md:p-6`}
+      } p-4 md:p-6 font-[kanit]`}
     >
       <div className="max-w-[1920px] mx-auto">
         {/* Top Controls Panel */}

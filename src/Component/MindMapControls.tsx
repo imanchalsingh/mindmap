@@ -78,7 +78,9 @@ const MindMapControls: React.FC<MindMapControlsProps> = ({
     <div className="space-y-4 md:space-y-6">
       <div className="flex items-center justify-between mb-2 md:mb-4">
         <h3
-          className={`font-semibold text-lg md:text-xl ${theme === "dark" ? "text-gray-200" : "text-gray-800"}`}
+          className={`font-semibold text-lg md:text-xl ${
+            theme === "dark" ? "text-gray-200" : "text-gray-800"
+          }`}
         >
           Controls
         </h3>
@@ -111,7 +113,9 @@ const MindMapControls: React.FC<MindMapControlsProps> = ({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label
-              className={`text-sm md:text-base ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}
+              className={`text-sm md:text-base ${
+                theme === "dark" ? "text-gray-300" : "text-gray-700"
+              }`}
             >
               Add Custom Node
             </Label>
@@ -143,7 +147,9 @@ const MindMapControls: React.FC<MindMapControlsProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label
-                className={`text-sm md:text-base ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}
+                className={`text-sm md:text-base ${
+                  theme === "dark" ? "text-gray-300" : "text-gray-700"
+                }`}
               >
                 Zoom: {Math.round(zoomLevel * 100)}%
               </Label>
@@ -164,25 +170,33 @@ const MindMapControls: React.FC<MindMapControlsProps> = ({
 
             <div className="grid grid-cols-2 gap-2">
               <div
-                className={`p-3 rounded text-center ${theme === "dark" ? "bg-gray-700" : "bg-gray-100"}`}
+                className={`p-3 rounded text-center ${
+                  theme === "dark" ? "bg-gray-700" : "bg-gray-100"
+                }`}
               >
                 <div className="text-lg md:text-xl font-bold text-[#F05A5B]">
                   {nodes.length}
                 </div>
                 <div
-                  className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                  className={`text-xs ${
+                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  }`}
                 >
                   Nodes
                 </div>
               </div>
               <div
-                className={`p-3 rounded text-center ${theme === "dark" ? "bg-gray-700" : "bg-gray-100"}`}
+                className={`p-3 rounded text-center ${
+                  theme === "dark" ? "bg-gray-700" : "bg-gray-100"
+                }`}
               >
                 <div className="text-lg md:text-xl font-bold text-[#4A90E2]">
                   {edges.length}
                 </div>
                 <div
-                  className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                  className={`text-xs ${
+                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  }`}
                 >
                   Edges
                 </div>
@@ -262,7 +276,11 @@ const MindMapControls: React.FC<MindMapControlsProps> = ({
               />
               <Button
                 variant="outline"
-                className={`w-full ${theme === "dark" ? "border-gray-600 text-gray-300 hover:bg-gray-700" : ""}`}
+                className={`w-full ${
+                  theme === "dark"
+                    ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                    : ""
+                }`}
                 onClick={() => fileInputRef.current?.click()}
               >
                 Import JSON
@@ -317,7 +335,9 @@ const MindMapControls: React.FC<MindMapControlsProps> = ({
           {/* Color Picker */}
           <div className="space-y-2">
             <Label
-              className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}
+              className={`text-sm ${
+                theme === "dark" ? "text-gray-300" : "text-gray-700"
+              }`}
             >
               Colors
             </Label>
@@ -335,19 +355,6 @@ const MindMapControls: React.FC<MindMapControlsProps> = ({
                   ))}
                 </div>
               </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Child Nodes</div>
-                <div className="flex flex-wrap gap-1">
-                  {colorPalette.slice(5, 10).map((color) => (
-                    <button
-                      key={color}
-                      className="w-6 h-6 md:w-7 md:h-7 rounded-full border-2 border-gray-300"
-                      style={{ backgroundColor: color }}
-                      onClick={() => onUpdateColorScheme("child", color)}
-                    />
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -356,17 +363,23 @@ const MindMapControls: React.FC<MindMapControlsProps> = ({
       {gameState === "win" && (
         <div className="space-y-4">
           <div
-            className={`p-4 rounded ${theme === "dark" ? "bg-gray-700" : "bg-gray-100"}`}
+            className={`p-4 rounded ${
+              theme === "dark" ? "bg-gray-700" : "bg-gray-100"
+            }`}
           >
             <h4
-              className={`font-semibold mb-2 ${theme === "dark" ? "text-gray-200" : "text-gray-800"}`}
+              className={`font-semibold mb-2 ${
+                theme === "dark" ? "text-gray-200" : "text-gray-800"
+              }`}
             >
               Mind Map Complete!
             </h4>
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span
-                  className={theme === "dark" ? "text-gray-300" : "text-gray-600"}
+                  className={
+                    theme === "dark" ? "text-gray-300" : "text-gray-600"
+                  }
                 >
                   Nodes:
                 </span>
@@ -374,7 +387,9 @@ const MindMapControls: React.FC<MindMapControlsProps> = ({
               </div>
               <div className="flex justify-between">
                 <span
-                  className={theme === "dark" ? "text-gray-300" : "text-gray-600"}
+                  className={
+                    theme === "dark" ? "text-gray-300" : "text-gray-600"
+                  }
                 >
                   Edges:
                 </span>
