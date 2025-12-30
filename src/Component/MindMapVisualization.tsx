@@ -1,6 +1,4 @@
-import React, { forwardRef, useCallback } from "react";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Card, CardContent } from "@/components/ui/card";
+import React, { forwardRef, useCallback, useState } from "react";
 
 interface Node {
   id: string;
@@ -9,6 +7,19 @@ interface Node {
   y: number;
   isRoot: boolean;
   color?: string;
+  expanded?: boolean;
+  description?: string;
+  size?: "small" | "medium" | "large";
+  shape?:
+    | "rectangle"
+    | "circle"
+    | "rounded"
+    | "diamond"
+    | "hexagon"
+    | "octagon"
+    | "triangle"
+    | "oval";
+  children?: string[];
 }
 
 interface Edge {
@@ -24,20 +35,31 @@ interface MindMapVisualizationProps {
   activeNode: string | null;
   draggedNode: string | null;
   zoomLevel: number;
+  panPosition: { x: number; y: number };
   gameState: "start" | "playing" | "win";
   nodeColors: {
     root: string;
     child: string;
     selected: string;
   };
+  theme: "dark" | "light";
   isMobile: boolean;
   onNodeClick: (nodeId: string) => void;
-  onNodeDragStart: (e: React.MouseEvent | React.TouchEvent, nodeId: string) => void;
+  onNodeContextMenu: (e: React.MouseEvent, nodeId: string) => void;
+  onNodeDragStart: (
+    e: React.MouseEvent | React.TouchEvent,
+    nodeId: string
+  ) => void;
   onNodeDragEnd: () => void;
   onEditNode: (nodeId: string) => void;
+  onDeleteNode: (nodeId: string) => void;
+  onPanView: (dx: number, dy: number) => void;
 }
 
-const MindMapVisualization = forwardRef<SVGSVGElement, MindMapVisualizationProps>(
+const MindMapVisualization = forwardRef<
+  SVGSVGElement,
+  MindMapVisualizationProps
+>(
   (
     {
       containerRef,
@@ -46,28 +68,59 @@ const MindMapVisualization = forwardRef<SVGSVGElement, MindMapVisualizationProps
       activeNode,
       draggedNode,
       zoomLevel,
-      gameState,
+      panPosition,
       nodeColors,
-      isMobile,
+      theme,
       onNodeClick,
+      onNodeContextMenu,
       onNodeDragStart,
       onNodeDragEnd,
       onEditNode,
+      onPanView,
     },
     ref
   ) => {
-    const theme = {
-      background: "#0F172A",
-      cardBackground: "#1E293B",
-      sidebarBackground: "#1E293B",
-      text: "#E2E8F0",
-      node: nodeColors.child,
-      nodeStroke: "#334155",
-      edge: "#475569",
-      suggestion: "#2D3748",
-      accent: "#F05A5B",
-      success: "#34D399",
-      warning: "#FBBF24",
+    const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+    const [isPanning, setIsPanning] = useState(false);
+    const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+      if (e.button === 0 && e.ctrlKey) {
+        e.preventDefault();
+        setIsPanning(true);
+        setPanStart({ x: e.clientX, y: e.clientY });
+        if (containerRef.current) {
+          containerRef.current.style.cursor = "grabbing";
+        }
+      }
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+      if (isPanning) {
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        onPanView(dx, dy);
+        setPanStart({ x: e.clientX, y: e.clientY });
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isPanning) {
+        setIsPanning(false);
+        if (containerRef.current) {
+          containerRef.current.style.cursor = "default";
+        }
+      }
+    };
+
+    const getNodeSize = (node: Node) => {
+      const baseSize = node.isRoot ? 120 : 100;
+      const sizeMultiplier = {
+        small: 0.8,
+        medium: 1,
+        large: 1.2,
+      }[node.size || "medium"];
+      return baseSize * sizeMultiplier;
     };
 
     const renderEdge = useCallback(
@@ -76,6 +129,9 @@ const MindMapVisualization = forwardRef<SVGSVGElement, MindMapVisualizationProps
         const target = nodes.find((n) => n.id === edge.target);
 
         if (!source || !target) return null;
+
+        // Don't show edges to collapsed nodes
+        if (target.expanded === false) return null;
 
         const isDragging =
           draggedNode &&
@@ -88,81 +144,188 @@ const MindMapVisualization = forwardRef<SVGSVGElement, MindMapVisualizationProps
             y1={source.y}
             x2={target.x}
             y2={target.y}
-            stroke={isDragging ? nodeColors.selected : theme.edge}
+            stroke={
+              isDragging
+                ? nodeColors.selected
+                : theme === "dark"
+                ? "#4B5563"
+                : "#9CA3AF"
+            }
             strokeWidth={isDragging ? 3 : 2}
-            className="transition-all duration-200"
+            strokeDasharray={isDragging ? "5,5" : "none"}
           />
         );
       },
-      [nodes, theme.edge, nodeColors.selected, draggedNode]
+      [nodes, theme, nodeColors.selected, draggedNode]
     );
 
     const renderNode = useCallback(
       (node: Node) => {
         const isActive = node.id === activeNode;
-        const nodeSize = isMobile
-          ? node.isRoot
-            ? 80
-            : 70
-          : node.isRoot
-          ? 120
-          : 100;
+        const isHovered = node.id === hoveredNode;
+        const isCollapsed = node.expanded === false;
+        const isDragged = draggedNode === node.id;
+
+        const nodeSize = getNodeSize(node);
         const nodeColor =
           node.color || (node.isRoot ? nodeColors.root : nodeColors.child);
+
+        const width = nodeSize;
+        const height = nodeSize * 0.6;
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        // Diamond points (centered properly)
+        const diamondPoints = `
+      ${centerX},${centerY - height / 2}
+      ${centerX + width / 2},${centerY}
+      ${centerX},${centerY + height / 2}
+      ${centerX - width / 2},${centerY}
+    `;
+
+        // Hexagon points
+        const hexagonPoints = `
+      ${centerX - width / 3},${centerY - height / 2}
+      ${centerX + width / 3},${centerY - height / 2}
+      ${centerX + width / 2},${centerY}
+      ${centerX + width / 3},${centerY + height / 2}
+      ${centerX - width / 3},${centerY + height / 2}
+      ${centerX - width / 2},${centerY}
+    `;
+
+        // Octagon points
+        const octagonPoints = `
+      ${centerX - width / 3},${centerY - height / 2}
+      ${centerX + width / 3},${centerY - height / 2}
+      ${centerX + width / 2},${centerY - height / 4}
+      ${centerX + width / 2},${centerY + height / 4}
+      ${centerX + width / 3},${centerY + height / 2}
+      ${centerX - width / 3},${centerY + height / 2}
+      ${centerX - width / 2},${centerY + height / 4}
+      ${centerX - width / 2},${centerY - height / 4}
+    `;
+
+        // Triangle points
+        const trianglePoints = `
+      ${centerX},${centerY - height / 2}
+      ${centerX + width / 2},${centerY + height / 2}
+      ${centerX - width / 2},${centerY + height / 2}
+    `;
+
+        // Ellipse (using ellipse element instead of polygon)
+
+        const renderShape = () => {
+          const shapeProps = {
+            fill: nodeColor,
+            stroke: isActive
+              ? nodeColors.selected
+              : isHovered
+              ? "#FFFFFF"
+              : "transparent",
+            strokeWidth: isActive ? 3 : isHovered ? 2 : 0,
+            onClick: () => onNodeClick(node.id),
+          };
+
+          switch (node.shape) {
+            case "circle":
+              return (
+                <circle
+                  cx={centerX}
+                  cy={centerY}
+                  r={width / 2}
+                  {...shapeProps}
+                />
+              );
+
+            case "rounded":
+              return (
+                <rect width={width} height={height} rx={12} {...shapeProps} />
+              );
+
+            case "diamond":
+              return <polygon points={diamondPoints} {...shapeProps} />;
+
+            case "hexagon":
+              return <polygon points={hexagonPoints} {...shapeProps} />;
+
+            case "octagon":
+              return <polygon points={octagonPoints} {...shapeProps} />;
+
+            case "triangle":
+              return <polygon points={trianglePoints} {...shapeProps} />;
+
+            case "oval":
+              return (
+                <ellipse
+                  cx={centerX}
+                  cy={centerY}
+                  rx={width / 2}
+                  ry={height / 2}
+                  {...shapeProps}
+                />
+              );
+
+            default: // rectangle
+              return (
+                <rect width={width} height={height} rx={8} {...shapeProps} />
+              );
+          }
+        };
 
         return (
           <g
             key={node.id}
-            transform={`translate(${node.x - nodeSize / 2}, ${
-              node.y - nodeSize / 3
+            transform={`translate(${node.x - width / 2}, ${
+              node.y - height / 2
             })`}
             onMouseDown={(e) => onNodeDragStart(e, node.id)}
-            onTouchStart={(e) => onNodeDragStart(e, node.id)}
-            style={{ cursor: draggedNode === node.id ? "grabbing" : "grab" }}
-            className="transition-transform duration-200"
+            onMouseEnter={() => setHoveredNode(node.id)}
+            onMouseLeave={() => setHoveredNode(null)}
+            onContextMenu={(e) => onNodeContextMenu(e, node.id)}
+            style={{
+              cursor: isDragged ? "grabbing" : "pointer",
+              opacity: isCollapsed ? 0.7 : 1,
+            }}
           >
-            <rect
-              width={nodeSize}
-              height={nodeSize * 0.6}
-              rx={8}
-              fill={nodeColor}
-              stroke={isActive ? nodeColors.selected : theme.nodeStroke}
-              strokeWidth={isActive ? 3 : 2}
-              className="shadow-lg"
-              style={{
-                filter: "drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))",
-                transition: "all 0.2s ease",
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onNodeClick(node.id);
-              }}
-              onTouchEnd={(e) => {
-                e.stopPropagation();
-                onNodeClick(node.id);
-              }}
-            />
+            {/* Render the shape */}
+            {renderShape()}
+
+            {/* Node text */}
             <text
-              x={nodeSize / 2}
-              y={nodeSize * 0.35}
+              x={centerX}
+              y={centerY}
               textAnchor="middle"
+              dominantBaseline="middle"
               fill="#FFFFFF"
-              fontSize={isMobile ? (node.isRoot ? 10 : 9) : node.isRoot ? 14 : 13}
-              fontWeight={node.isRoot ? "bold" : "600"}
-              className="pointer-events-none select-none"
-              style={{ textShadow: "1px 1px 2px rgba(0,0,0,0.5)" }}
+              fontSize={node.isRoot ? 14 : 12}
+              fontWeight={node.isRoot ? "bold" : "normal"}
+              className="select-none"
+              style={{
+                pointerEvents: "none",
+                textShadow: "1px 1px 2px rgba(0,0,0,0.5)",
+              }}
             >
-              {node.text.length > 20
-                ? node.text.substring(0, 20) + "..."
+              {node.text.length > 15
+                ? node.text.substring(0, 15) + "..."
                 : node.text}
             </text>
+
+            {/* Collapse indicator */}
+            {isCollapsed && (
+              <circle
+                cx={width - 10}
+                cy={10}
+                r={6}
+                fill="#F59E0B"
+                stroke="#FFFFFF"
+                strokeWidth="1"
+              />
+            )}
+
+            {/* Edit button */}
             {isActive && (
               <g
                 onClick={(e) => {
-                  e.stopPropagation();
-                  onEditNode(node.id);
-                }}
-                onTouchEnd={(e) => {
                   e.stopPropagation();
                   onEditNode(node.id);
                 }}
@@ -170,19 +333,19 @@ const MindMapVisualization = forwardRef<SVGSVGElement, MindMapVisualizationProps
                 className="hover:opacity-80 transition-opacity"
               >
                 <circle
-                  cx={nodeSize}
-                  cy={nodeSize * 0.6}
-                  r={isMobile ? 6 : 8}
+                  cx={width}
+                  cy={height}
+                  r={10}
                   fill={nodeColors.selected}
                   stroke="#FFFFFF"
                   strokeWidth="2"
                 />
                 <text
-                  x={nodeSize}
-                  y={nodeSize * 0.6 + 2}
+                  x={width}
+                  y={height + 3}
                   textAnchor="middle"
                   fill="#FFFFFF"
-                  fontSize={isMobile ? 8 : 10}
+                  fontSize={10}
                   fontWeight="bold"
                   style={{ pointerEvents: "none" }}
                 >
@@ -190,113 +353,169 @@ const MindMapVisualization = forwardRef<SVGSVGElement, MindMapVisualizationProps
                 </text>
               </g>
             )}
+
+            {/* Hover tooltip */}
+            {isHovered && node.description && (
+              <g>
+                <rect
+                  x={width + 10}
+                  y={centerY - 20}
+                  width={150}
+                  height={40}
+                  rx={6}
+                  fill={theme === "dark" ? "#1F2937" : "#FFFFFF"}
+                  stroke={theme === "dark" ? "#374151" : "#D1D5DB"}
+                  strokeWidth={1}
+                  className="shadow-lg"
+                />
+                <text
+                  x={width + 15}
+                  y={centerY}
+                  fill={theme === "dark" ? "#E5E7EB" : "#374151"}
+                  fontSize={10}
+                  fontWeight="500"
+                >
+                  {node.description.length > 30
+                    ? node.description.substring(0, 30) + "..."
+                    : node.description}
+                </text>
+              </g>
+            )}
+
+            {/* Children count badge */}
+            {node.children && node.children.length > 0 && (
+              <circle
+                cx={width - 10}
+                cy={height - 10}
+                r={8}
+                fill={theme === "dark" ? "#374151" : "#F3F4F6"}
+                stroke={theme === "dark" ? "#4B5563" : "#D1D5DB"}
+                strokeWidth="1"
+              >
+                <title>{node.children.length} children</title>
+                <text
+                  x={width - 10}
+                  y={height - 6}
+                  textAnchor="middle"
+                  fill={theme === "dark" ? "#E5E7EB" : "#374151"}
+                  fontSize={8}
+                  fontWeight="bold"
+                  style={{ pointerEvents: "none" }}
+                >
+                  {node.children.length}
+                </text>
+              </circle>
+            )}
           </g>
         );
       },
       [
         activeNode,
-        theme.nodeStroke,
+        hoveredNode,
+        draggedNode,
+        theme,
         nodeColors,
         onNodeClick,
+        onNodeContextMenu,
         onNodeDragStart,
         onEditNode,
-        draggedNode,
-        isMobile,
       ]
     );
 
     return (
-      <Card className="border-gray-700 bg-gray-800 shadow-xl flex-1 overflow-hidden">
-        <CardContent className="p-1 sm:p-2 md:p-0 h-full">
-          <AspectRatio ratio={16 / 9} className="w-full h-full">
-            <div
-              ref={containerRef}
-              className="relative w-full h-full overflow-hidden rounded-lg bg-gray-900"
+      <div
+        className="flex-1 border rounded-lg overflow-hidden"
+        style={{
+          background: theme === "dark" ? "#111827" : "#F9FAFB",
+          height: "600px",
+        }}
+      >
+        <div
+          ref={containerRef}
+          className="relative w-full h-full overflow-auto"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          style={{ cursor: isPanning ? "grabbing" : "default" }}
+        >
+          <svg
+            ref={ref}
+            width="1000"
+            height="700"
+            style={{
+              transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomLevel})`,
+              transformOrigin: "0 0",
+            }}
+            onMouseUp={onNodeDragEnd}
+          >
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="2" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            {/* Background grid */}
+            <pattern
+              id="grid"
+              width="50"
+              height="50"
+              patternUnits="userSpaceOnUse"
             >
-              <svg
-                ref={ref}
-                width="100%"
-                height="100%"
-                viewBox="0 0 800 600"
-                style={{
-                  transform: `scale(${zoomLevel})`,
-                  transformOrigin: "center",
-                  transition: "transform 0.2s ease",
-                }}
-                onMouseUp={onNodeDragEnd}
-                onMouseLeave={onNodeDragEnd}
-                onTouchEnd={onNodeDragEnd}
-                onClick={() => {
-                  // Clear selection when clicking on empty space
-                  // Note: This is handled in parent component
-                }}
+              <path
+                d="M 50 0 L 0 0 0 50"
+                fill="none"
+                stroke={theme === "dark" ? "#374151" : "#E5E7EB"}
+                strokeWidth="1"
+              />
+            </pattern>
+            <rect width="100%" height="100%" fill="url(#grid)" opacity="0.3" />
+
+            <g>
+              {edges.map(renderEdge)}
+              {nodes.map(renderNode)}
+            </g>
+          </svg>
+
+          {/* Controls */}
+          <div className="absolute bottom-4 left-4 flex gap-2">
+            <div
+              className={`px-3 py-2 rounded-lg ${
+                theme === "dark" ? "bg-gray-800" : "bg-white"
+              } border ${
+                theme === "dark" ? "border-gray-700" : "border-gray-200"
+              }`}
+            >
+              <div
+                className={`text-sm ${
+                  theme === "dark" ? "text-gray-300" : "text-gray-600"
+                }`}
               >
-                <defs>
-                  <filter
-                    id="glow"
-                    x="-50%"
-                    y="-50%"
-                    width="200%"
-                    height="200%"
-                  >
-                    <feGaussianBlur stdDeviation="2" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-                <g>
-                  {edges.map(renderEdge)}
-                  {nodes.map(renderNode)}
-                </g>
-              </svg>
-
-              {/* Zoom Indicator */}
-              {zoomLevel !== 1 && (
-                <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 bg-gray-800/90 backdrop-blur-sm px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-lg">
-                  <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-300">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="11" cy="11" r="8"></circle>
-                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                    Zoom: {Math.round(zoomLevel * 100)}%
-                  </div>
-                </div>
-              )}
-
-              {/* Instruction Tooltip */}
-              {gameState === "playing" && (
-                <div className="absolute top-2 sm:top-4 right-2 sm:right-4 bg-gray-800/90 backdrop-blur-sm px-2 py-1 sm:px-3 sm:py-2 rounded-lg shadow-lg">
-                  <div className="text-xs text-gray-300">
-                    <div className="flex items-center gap-1 mb-1">
-                      <div className="w-2 h-2 rounded-full bg-[#F05A5B]"></div>
-                      <span>Click nodes to select</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: nodeColors.selected }}
-                      ></div>
-                      <span>Drag nodes to move</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+                Zoom: {Math.round(zoomLevel * 100)}%
+              </div>
             </div>
-          </AspectRatio>
-        </CardContent>
-      </Card>
+            <div
+              className={`px-3 py-2 rounded-lg ${
+                theme === "dark" ? "bg-gray-800" : "bg-white"
+              } border ${
+                theme === "dark" ? "border-gray-700" : "border-gray-200"
+              }`}
+            >
+              <div
+                className={`text-sm ${
+                  theme === "dark" ? "text-gray-300" : "text-gray-600"
+                }`}
+              >
+                Ctrl+Scroll to zoom | Ctrl+Drag to pan
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 );
