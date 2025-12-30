@@ -2,8 +2,14 @@ import React from "react";
 import { useState, useRef, useEffect, useCallback, RefObject } from "react";
 import MindMapControls from "./MindMapControls";
 import MindMapVisualization from "./MindMapVisualization";
-import SuggestionsPanel from "./SuggestionsPanel";
+import NodeDetailsPanel from "./NodeDetailsPanel";
 import EditNodeDialog from "./EditNodeDialog";
+
+interface NodeData {
+  priority?: "low" | "medium" | "high";
+  status?: "active" | "completed" | "in-progress" | "planned";
+  created?: string;
+}
 
 interface Node {
   id: string;
@@ -12,6 +18,13 @@ interface Node {
   y: number;
   isRoot: boolean;
   color?: string;
+  description?: string;
+  expanded?: boolean;
+  children?: string[];
+  parent?: string;
+  data?: NodeData;
+  size?: "small" | "medium" | "large";
+  shape?: "rectangle" | "circle" | "rounded" | "diamond" | "hexagon" | "octagon" | "triangle" | "oval";
 }
 
 interface Edge {
@@ -20,26 +33,137 @@ interface Edge {
   target: string;
 }
 
+const MOCK_SUGGESTIONS: Record<string, string[]> = {
+  "Central Idea": [
+    "Feature 1",
+    "User Benefits",
+    "Technical Stack",
+    "Business Model",
+  ],
+  "Feature 1": ["Drag & Drop", "Real-time Updates", "Export Options"],
+  "User Benefits": [
+    "Improved Productivity",
+    "Visual Organization",
+    "Brainstorming Tool",
+  ],
+  "Technical Stack": ["Front-end", "Back-end", "Database", "AI Components"],
+  "Business Model": ["Freemium", "Subscription", "Enterprise"],
+  "Drag & Drop": ["Touch Support", "Multi-select", "Grouping"],
+  "Export Options": ["PNG", "PDF", "SVG", "JSON"],
+  "AI Components": ["NLP Processing", "Suggestion Engine", "Auto-layout"],
+};
+
+const DEFAULT_NODE_DATA: Partial<Node> = {
+  description: "Click to add description...",
+  expanded: true,
+  children: [],
+  data: { priority: "medium", status: "active" },
+  size: "medium",
+  shape: "rectangle",
+};
+
 const MindMap: React.FC = () => {
+  // Initialize with a more interesting mind map
   const [nodes, setNodes] = useState<Node[]>([
     {
       id: "1",
       text: "Central Idea",
-      x: 400,
-      y: 300,
+      x: 500,
+      y: 350,
       isRoot: true,
       color: "#F05A5B",
+      description:
+        "This is your central idea. Click to expand and add more ideas.",
+      expanded: true,
+      children: ["2", "3", "4", "5"],
+      data: {
+        priority: "high",
+        status: "active",
+        created: new Date().toISOString(),
+      },
+    },
+    {
+      id: "2",
+      text: "Feature 1",
+      x: 300,
+      y: 200,
+      isRoot: false,
+      color: "#4A90E2",
+      description: "Main features of the project",
+      expanded: true,
+      parent: "1",
+      children: ["6", "7"],
+      data: { priority: "high", status: "active" },
+    },
+    {
+      id: "3",
+      text: "User Benefits",
+      x: 700,
+      y: 200,
+      isRoot: false,
+      color: "#38A169",
+      description: "Benefits for end users",
+      expanded: true,
+      parent: "1",
+      children: [],
+      data: { priority: "medium", status: "active" },
+    },
+    {
+      id: "4",
+      text: "Technical Stack",
+      x: 300,
+      y: 500,
+      isRoot: false,
+      color: "#ED8936",
+      description: "Technologies used in the project",
+      expanded: true,
+      parent: "1",
+      children: [],
+      data: { priority: "medium", status: "active" },
+    },
+    {
+      id: "5",
+      text: "Business Model",
+      x: 700,
+      y: 500,
+      isRoot: false,
+      color: "#9F7AEA",
+      description: "Revenue and business strategy",
+      expanded: true,
+      parent: "1",
+      children: [],
+      data: { priority: "low", status: "planned" },
+    },
+    {
+      id: "6",
+      text: "Drag & Drop",
+      x: 200,
+      y: 100,
+      isRoot: false,
+      color: "#4299E1",
+      description: "Drag and drop functionality",
+      expanded: true,
+      parent: "2",
+      children: [],
+      data: { priority: "high", status: "completed" },
     },
   ]);
-  const [edges, setEdges] = useState<Edge[]>([]);
-  const [activeNode, setActiveNode] = useState<string | null>(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  const [edges, setEdges] = useState<Edge[]>([
+    { id: "1-2", source: "1", target: "2" },
+    { id: "1-3", source: "1", target: "3" },
+    { id: "1-4", source: "1", target: "4" },
+    { id: "1-5", source: "1", target: "5" },
+    { id: "2-6", source: "2", target: "6" },
+    { id: "2-7", source: "2", target: "7" },
+  ]);
+
+  const [activeNode, setActiveNode] = useState<string | null>("1");
   const [zoomLevel, setZoomLevel] = useState(1);
   const [gameState, setGameState] = useState<"start" | "playing" | "win">(
-    "start"
+    "playing"
   );
-  const [showInstructions, setShowInstructions] = useState(true);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [customNodeText, setCustomNodeText] = useState("");
@@ -48,7 +172,24 @@ const MindMap: React.FC = () => {
   const [editingNode, setEditingNode] = useState<Node | null>(null);
   const [editText, setEditText] = useState("");
   const [editColor, setEditColor] = useState("");
-  const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+  const [editDescription, setEditDescription] = useState("");
+  const [editSize, setEditSize] = useState<"small" | "medium" | "large">(
+    "medium"
+  );
+  const [editShape, setEditShape] = useState<
+    "rectangle" | "circle" | "rounded" | "diamond" | "hexagon" | "octagon" | "triangle" | "oval"
+  >("rectangle");
+  const [nodeDetailsOpen, setNodeDetailsOpen] = useState(true);
+  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
+  const [showContextMenu, setShowContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId: string;
+  } | null>(null);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [suggestions, setSuggestions] = useState<string[]>(
+    MOCK_SUGGESTIONS["Central Idea"]
+  );
 
   const [nodeColors, setNodeColors] = useState({
     root: "#F05A5B",
@@ -58,222 +199,49 @@ const MindMap: React.FC = () => {
 
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
-  // Real-time AI suggestions using OpenAI API (client-side)
-  const generateAISuggestions = useCallback(async (nodeText: string) => {
-    setIsGeneratingSuggestions(true);
-    try {
-      // Direct OpenAI API call from client-side (make sure to use CORS proxy or backend in production)
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-3.5-turbo",
-            messages: [
-              {
-                role: "system",
-                content:
-                  "You are a creative brainstorming assistant. Generate 4 relevant ideas or subtopics for a mind map based on the given topic. Return only the suggestions as a JSON array of strings.",
-              },
-              {
-                role: "user",
-                content: `Generate 4 mind map suggestions for the topic: "${nodeText}". Return as JSON array only.`,
-              },
-            ],
-            temperature: 0.7,
-            max_tokens: 150,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch AI suggestions");
-      }
-
-      const data = await response.json();
-      const content = data.choices[0]?.message?.content;
-
-      // Parse the response - OpenAI might return JSON or text
-      try {
-        const parsed = JSON.parse(content);
-        return Array.isArray(parsed) ? parsed : [content];
-      } catch {
-        // If not JSON, split by lines or commas
-        const suggestions = content.split("\n").filter((s: string) => s.trim());
-        return suggestions.slice(0, 4);
-      }
-    } catch (error) {
-      console.error("Error fetching AI suggestions:", error);
-      // Fallback to mock suggestions if API fails
-      const suggestionMap: Record<string, string[]> = {
-        "Central Idea": [
-          "Feature 1",
-          "User Benefits",
-          "Technical Stack",
-          "Business Model",
-        ],
-        "Feature 1": ["Drag & Drop", "Real-time Updates", "Export Options"],
-        "User Benefits": [
-          "Improved Productivity",
-          "Visual Organization",
-          "Brainstorming Tool",
-        ],
-        "Technical Stack": [
-          "Front-end",
-          "Back-end",
-          "Database",
-          "AI Components",
-        ],
-        "Business Model": ["Freemium", "Subscription", "Enterprise"],
-        "Drag & Drop": ["Touch Support", "Multi-select", "Grouping"],
-        "Export Options": ["PNG", "PDF", "SVG", "JSON"],
-        "AI Components": ["NLP Processing", "Suggestion Engine", "Auto-layout"],
-      };
-
-      return (
-        suggestionMap[nodeText] || [
-          "New Idea",
-          "Related Concept",
-          "Example",
-          "Sub-category",
-        ]
-      );
-    } finally {
-      setIsGeneratingSuggestions(false);
-    }
+  // Toggle theme
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
-
-  // Alternative: Use a CORS proxy for OpenAI API
-  // const generateAISuggestionsWithProxy = useCallback(async (nodeText: string) => {
-  //   setIsGeneratingSuggestions(true);
-  //   try {
-  //     // Using a CORS proxy (you can deploy your own or use a trusted one)
-  //     const proxyUrl = import.meta.env.VITE_API_PROXY_URL || 'https://corsproxy.io/?';
-  //     const apiUrl = 'https://api.openai.com/v1/chat/completions';
-
-  //     const response = await fetch(`${proxyUrl}${encodeURIComponent(apiUrl)}`, {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //         'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-  //       },
-  //       body: JSON.stringify({
-  //         model: "gpt-3.5-turbo",
-  //         messages: [
-  //           {
-  //             role: "system",
-  //             content: "You are a creative brainstorming assistant. Generate 4 relevant ideas or subtopics for a mind map based on the given topic. Return a JSON array of strings."
-  //           },
-  //           {
-  //             role: "user",
-  //             content: `Topic: "${nodeText}"`
-  //           }
-  //         ],
-  //         temperature: 0.7,
-  //         max_tokens: 100,
-  //       }),
-  //     });
-
-  //     if (!response.ok) {
-  //       throw new Error('Failed to fetch AI suggestions');
-  //     }
-
-  //     const data = await response.json();
-  //     const content = data.choices[0]?.message?.content;
-
-  //     // Try to parse as JSON, otherwise use as is
-  //     try {
-  //       return JSON.parse(content);
-  //     } catch {
-  //       return [
-  //         "Creative Idea 1",
-  //         "Related Concept",
-  //         "Implementation Plan",
-  //         "Future Scope"
-  //       ];
-  //     }
-  //   } catch (error) {
-  //     console.error('Error with AI suggestions:', error);
-  //     return [
-  //       "Innovative Concept",
-  //       "Practical Application",
-  //       "Technical Aspect",
-  //       "User Experience"
-  //     ];
-  //   } finally {
-  //     setIsGeneratingSuggestions(false);
-  //   }
-  // }, []);
 
   // Handle node click
   const handleNodeClick = useCallback(
-    async (nodeId: string) => {
+    (nodeId: string) => {
       if (gameState !== "playing" || isDragging) return;
 
       const node = nodes.find((n) => n.id === nodeId);
       if (!node) return;
 
       setActiveNode(nodeId);
-      setShowSuggestions(false);
+      setNodeDetailsOpen(true);
 
-      // Generate AI suggestions
-      if (import.meta.env.VITE_OPENAI_API_KEY) {
-        const newSuggestions = await generateAISuggestions(node.text);
-        setSuggestions(newSuggestions);
-      } else {
-        // Mock suggestions if no API key
-        const suggestionMap: Record<string, string[]> = {
-          "Central Idea": [
-            "Feature 1",
-            "User Benefits",
-            "Technical Stack",
-            "Business Model",
-          ],
-          "Feature 1": ["Drag & Drop", "Real-time Updates", "Export Options"],
-          "User Benefits": [
-            "Improved Productivity",
-            "Visual Organization",
-            "Brainstorming Tool",
-          ],
-          "Technical Stack": [
-            "Front-end",
-            "Back-end",
-            "Database",
-            "AI Components",
-          ],
-          "Business Model": ["Freemium", "Subscription", "Enterprise"],
-          "Drag & Drop": ["Touch Support", "Multi-select", "Grouping"],
-          "Export Options": ["PNG", "PDF", "SVG", "JSON"],
-          "AI Components": [
-            "NLP Processing",
-            "Suggestion Engine",
-            "Auto-layout",
-          ],
-        };
-
-        setSuggestions(
-          suggestionMap[node.text] || [
-            "New Idea",
-            "Related Concept",
-            "Example",
-            "Sub-category",
-          ]
-        );
-      }
-
-      setShowSuggestions(true);
+      // Set suggestions for the clicked node
+      const nodeSuggestions = MOCK_SUGGESTIONS[node.text] || [
+        "New Idea",
+        "Related Concept",
+        "Example",
+        "Sub-category",
+      ];
+      setSuggestions(nodeSuggestions);
     },
-    [nodes, gameState, generateAISuggestions, isDragging]
+    [nodes, gameState, isDragging]
   );
 
-  // Rest of the functions remain the same...
-  // Add a new node and connect it
+  // Handle node right-click
+  const handleNodeContextMenu = useCallback(
+    (e: React.MouseEvent, nodeId: string) => {
+      e.preventDefault();
+      setShowContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        nodeId,
+      });
+    },
+    []
+  );
+
+  // Add a new node
   const addNode = useCallback(
     (text: string, color?: string) => {
       if (!activeNode) return;
@@ -282,25 +250,26 @@ const MindMap: React.FC = () => {
       if (!parentNode) return;
 
       const angle = Math.random() * Math.PI * 2;
-      const distance = isMobile ? 100 * zoomLevel : 150 * zoomLevel;
+      const distance = 200;
 
       const newX = parentNode.x + Math.cos(angle) * distance;
       const newY = parentNode.y + Math.sin(angle) * distance;
 
-      const newNodeId = String(Date.now());
+      const newNodeId = `node-${Date.now()}`;
 
-      setNodes((prev) => [
-        ...prev,
-        {
-          id: newNodeId,
-          text,
-          x: newX,
-          y: newY,
-          isRoot: false,
-          color: color || nodeColors.child,
-        },
-      ]);
+      const newNode: Node = {
+        id: newNodeId,
+        text,
+        x: newX,
+        y: newY,
+        isRoot: false,
+        color: color || nodeColors.child,
+        ...DEFAULT_NODE_DATA,
+        parent: activeNode,
+        description: `Related to: ${parentNode.text}`,
+      };
 
+      setNodes((prev) => [...prev, newNode]);
       setEdges((prev) => [
         ...prev,
         {
@@ -310,9 +279,22 @@ const MindMap: React.FC = () => {
         },
       ]);
 
-      setShowSuggestions(false);
+      // Update parent's children
+      setNodes((prev) =>
+        prev.map((node) =>
+          node.id === activeNode
+            ? {
+                ...node,
+                children: [...(node.children || []), newNodeId],
+                expanded: true,
+              }
+            : node
+        )
+      );
+
+      setActiveNode(newNodeId);
     },
-    [activeNode, nodes, zoomLevel, nodeColors.child, isMobile]
+    [activeNode, nodes, nodeColors.child]
   );
 
   // Add custom node
@@ -325,21 +307,116 @@ const MindMap: React.FC = () => {
     [addNode]
   );
 
+  // Add node from suggestion
+  const addNodeFromSuggestion = useCallback(
+    (suggestion: string) => {
+      addNode(suggestion);
+    },
+    [addNode]
+  );
+
+  // Toggle node expand/collapse
+  const toggleNodeExpand = useCallback((nodeId: string) => {
+    setNodes((prev) =>
+      prev.map((node) =>
+        node.id === nodeId ? { ...node, expanded: !node.expanded } : node
+      )
+    );
+  }, []);
+
+  // Drill down
+  const drillDown = useCallback(
+    (nodeId: string) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+
+      // Center on node
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+
+      const offsetX = centerX - node.x * zoomLevel;
+      const offsetY = centerY - node.y * zoomLevel;
+
+      setPanPosition({ x: offsetX, y: offsetY });
+    },
+    [nodes, zoomLevel]
+  );
+
+  // Drill up
+  const drillUp = useCallback(() => {
+    if (!activeNode) return;
+
+    const node = nodes.find((n) => n.id === activeNode);
+    if (!node?.parent) return;
+
+    const parentNode = nodes.find((n) => n.id === node.parent);
+    if (!parentNode) return;
+
+    setActiveNode(node.parent);
+
+    // Center on parent
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    const offsetX = centerX - parentNode.x * zoomLevel;
+    const offsetY = centerY - parentNode.y * zoomLevel;
+
+    setPanPosition({ x: offsetX, y: offsetY });
+  }, [activeNode, nodes, zoomLevel]);
+
+  // Fit view
+  const fitView = useCallback(() => {
+    if (nodes.length === 0) return;
+
+    const minX = Math.min(...nodes.map((n) => n.x));
+    const maxX = Math.max(...nodes.map((n) => n.x));
+    const minY = Math.min(...nodes.map((n) => n.y));
+    const maxY = Math.max(...nodes.map((n) => n.y));
+
+    const width = maxX - minX + 400;
+    const height = maxY - minY + 400;
+
+    const scale = Math.min(800 / width, 600 / height, 1.5);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    setZoomLevel(scale);
+    setPanPosition({
+      x: 400 - centerX * scale,
+      y: 300 - centerY * scale,
+    });
+  }, [nodes]);
+
+  // Pan view
+  const panView = useCallback((dx: number, dy: number) => {
+    setPanPosition((prev) => ({
+      x: prev.x + dx,
+      y: prev.y + dy,
+    }));
+  }, []);
+
   // Update color scheme
   const updateColorScheme = useCallback(
     (type: "root" | "child" | "selected", color: string) => {
       setNodeColors((prev) => ({ ...prev, [type]: color }));
 
-      // Update existing nodes
-      if (type === "child") {
+      if (type === "root") {
+        setNodes((prev) =>
+          prev.map((node) => (node.isRoot ? { ...node, color } : node))
+        );
+      } else if (type === "child") {
         setNodes((prev) =>
           prev.map((node) =>
             !node.isRoot && !node.color ? { ...node, color } : node
           )
-        );
-      } else if (type === "root") {
-        setNodes((prev) =>
-          prev.map((node) => (node.isRoot ? { ...node, color } : node))
         );
       }
     },
@@ -357,6 +434,9 @@ const MindMap: React.FC = () => {
       setEditColor(
         node.color || (node.isRoot ? nodeColors.root : nodeColors.child)
       );
+      setEditDescription(node.description || "");
+      setEditSize(node.size || "medium");
+      setEditShape(node.shape || "rectangle");
       setEditDialogOpen(true);
     },
     [nodes, nodeColors]
@@ -369,42 +449,125 @@ const MindMap: React.FC = () => {
     setNodes((prev) =>
       prev.map((node) =>
         node.id === editingNode.id
-          ? { ...node, text: editText, color: editColor }
+          ? {
+              ...node,
+              text: editText,
+              color: editColor,
+              description: editDescription,
+              size: editSize,
+              shape: editShape,
+            }
           : node
       )
     );
-
     setEditDialogOpen(false);
-  }, [editingNode, editText, editColor]);
+  }, [editingNode, editText, editColor, editDescription, editSize, editShape]);
 
-  // Start the mind mapping
+  // Delete node
+  const deleteNode = useCallback(
+    (nodeId: string) => {
+      const nodeToDelete = nodes.find((n) => n.id === nodeId);
+      if (!nodeToDelete || nodeToDelete.isRoot) return;
+
+      // Find all children recursively
+      const findAllChildren = (id: string): string[] => {
+        const node = nodes.find((n) => n.id === id);
+        if (!node) return [];
+
+        const children = node.children || [];
+        let allChildren = [id];
+
+        children.forEach((childId) => {
+          allChildren = [...allChildren, ...findAllChildren(childId)];
+        });
+
+        return allChildren;
+      };
+
+      const nodesToRemove = findAllChildren(nodeId);
+
+      // Remove edges
+      setEdges((prev) =>
+        prev.filter(
+          (edge) =>
+            !nodesToRemove.includes(edge.source) &&
+            !nodesToRemove.includes(edge.target)
+        )
+      );
+
+      // Remove nodes
+      setNodes((prev) =>
+        prev.filter((node) => !nodesToRemove.includes(node.id))
+      );
+
+      // Update parent's children
+      const parentId = nodeToDelete.parent;
+      if (parentId) {
+        setNodes((prev) =>
+          prev.map((node) =>
+            node.id === parentId
+              ? {
+                  ...node,
+                  children: node.children?.filter(
+                    (childId) => childId !== nodeId
+                  ),
+                }
+              : node
+          )
+        );
+      }
+
+      if (activeNode === nodeId) {
+        setActiveNode(parentId || null);
+        setNodeDetailsOpen(!!parentId);
+      }
+      setShowContextMenu(null);
+    },
+    [nodes, activeNode]
+  );
+
+  // Start mind map
   const startMindMap = useCallback(() => {
     setGameState("playing");
     setShowInstructions(false);
+    setActiveNode("1");
+    setNodeDetailsOpen(true);
   }, []);
 
-  // Reset the mind map
+  // Reset mind map
   const resetMindMap = useCallback(() => {
     setNodes([
       {
         id: "1",
         text: "Central Idea",
-        x: 400,
-        y: 300,
+        x: 500,
+        y: 350,
         isRoot: true,
         color: nodeColors.root,
+        description:
+          "This is your central idea. Click to expand and add more ideas.",
+        expanded: true,
+        children: [],
+        data: {
+          priority: "high",
+          status: "active",
+          created: new Date().toISOString(),
+        },
       },
     ]);
     setEdges([]);
-    setActiveNode(null);
-    setShowSuggestions(false);
+    setActiveNode("1");
     setZoomLevel(1);
-    setGameState("start");
-    setShowInstructions(true);
+    setPanPosition({ x: 0, y: 0 });
+    setGameState("playing");
+    setShowInstructions(false);
     setCustomNodeText("");
+    setNodeDetailsOpen(true);
+    setShowContextMenu(null);
+    setSuggestions(MOCK_SUGGESTIONS["Central Idea"]);
   }, [nodeColors.root]);
 
-  // Export mind map as an image
+  // Export as image
   const exportAsImage = useCallback(() => {
     if (!svgRef.current) return;
 
@@ -417,12 +580,9 @@ const MindMap: React.FC = () => {
       canvas.width = img.width;
       canvas.height = img.height;
 
-      if (!ctx) {
-        console.error("Failed to get canvas context.");
-        return;
-      }
+      if (!ctx) return;
 
-      ctx.fillStyle = "#0F172A";
+      ctx.fillStyle = theme === "dark" ? "#0F172A" : "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
 
@@ -435,9 +595,9 @@ const MindMap: React.FC = () => {
     img.src =
       "data:image/svg+xml;base64," +
       btoa(unescape(encodeURIComponent(svgData)));
-  }, []);
+  }, [theme]);
 
-  // Export mind map as JSON
+  // Export as JSON
   const exportAsJSON = useCallback(() => {
     const data = {
       nodes,
@@ -447,21 +607,61 @@ const MindMap: React.FC = () => {
         version: "1.0",
         totalNodes: nodes.length,
         totalEdges: edges.length,
+        theme,
+        nodeColors,
       },
     };
 
     const dataStr = JSON.stringify(data, null, 2);
     const dataUri =
       "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
-
     const exportFileDefaultName = `mindmap-${new Date().getTime()}.json`;
+
     const linkElement = document.createElement("a");
     linkElement.setAttribute("href", dataUri);
     linkElement.setAttribute("download", exportFileDefaultName);
     linkElement.click();
-  }, [nodes, edges]);
+  }, [nodes, edges, theme, nodeColors]);
 
-  // Summary of the mind map
+  // Import from JSON
+  const importFromJSON = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          const data = JSON.parse(content);
+
+          if (data.nodes) {
+            setNodes(data.nodes);
+          }
+          if (data.edges) {
+            setEdges(data.edges);
+          }
+          if (data.metadata?.theme) {
+            setTheme(data.metadata.theme);
+          }
+          if (data.metadata?.nodeColors) {
+            setNodeColors(data.metadata.nodeColors);
+          }
+
+          setGameState("playing");
+          setActiveNode(data.nodes[0]?.id || null);
+        } catch (error) {
+          console.error("Error importing JSON:", error);
+          alert("Invalid JSON file");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    },
+    []
+  );
+
+  // Finish mind map
   const finishMindMap = useCallback(() => {
     setGameState("win");
   }, []);
@@ -472,9 +672,7 @@ const MindMap: React.FC = () => {
       if (gameState !== "playing") return;
 
       const node = nodes.find((n) => n.id === nodeId);
-      if (!node) return;
-
-      if (!svgRef.current) return;
+      if (!node || !svgRef.current) return;
 
       const svgRect = svgRef.current.getBoundingClientRect();
       const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
@@ -493,8 +691,7 @@ const MindMap: React.FC = () => {
   // Handle node dragging
   const handleNodeDrag = useCallback(
     (e: MouseEvent | TouchEvent) => {
-      if (!draggedNode || gameState !== "playing") return;
-      if (!svgRef.current) return;
+      if (!draggedNode || !svgRef.current) return;
 
       const svgRect = svgRef.current.getBoundingClientRect();
       const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
@@ -507,7 +704,7 @@ const MindMap: React.FC = () => {
         prev.map((node) => (node.id === draggedNode ? { ...node, x, y } : node))
       );
     },
-    [draggedNode, dragOffset, gameState, zoomLevel]
+    [draggedNode, dragOffset, zoomLevel]
   );
 
   // Handle node drag end
@@ -516,44 +713,64 @@ const MindMap: React.FC = () => {
     setDraggedNode(null);
   }, []);
 
+  // Handle wheel for zoom
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (!containerRef.current?.contains(e.target as globalThis.Node)) return;
+
+      e.preventDefault();
+
+      if (e.ctrlKey) {
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        setZoomLevel((prev) => Math.max(0.3, Math.min(3, prev + delta)));
+      } else {
+        panView(e.deltaX, e.deltaY);
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => window.removeEventListener("wheel", handleWheel);
+  }, [panView]);
+
   // Add mouse event listeners
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (draggedNode) {
-        handleNodeDrag(e);
-      }
+      if (draggedNode) handleNodeDrag(e);
     };
 
     const handleMouseUp = () => {
-      if (draggedNode) {
-        handleNodeDragEnd();
-      }
+      if (draggedNode) handleNodeDragEnd();
+      setShowContextMenu(null);
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (draggedNode) {
-        handleNodeDrag(e);
-      }
+      if (draggedNode) handleNodeDrag(e);
     };
 
     const handleTouchEnd = () => {
-      if (draggedNode) {
-        handleNodeDragEnd();
-      }
+      if (draggedNode) handleNodeDragEnd();
+      setShowContextMenu(null);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowContextMenu(null);
+      if (e.key === "Delete" && activeNode) deleteNode(activeNode);
     };
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
-    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchmove", handleTouchMove);
     window.addEventListener("touchend", handleTouchEnd);
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [draggedNode, handleNodeDrag, handleNodeDragEnd]);
+  }, [draggedNode, handleNodeDrag, handleNodeDragEnd, activeNode, deleteNode]);
 
   // Color palette
   const colorPalette = [
@@ -569,59 +786,106 @@ const MindMap: React.FC = () => {
     "#F56565",
     "#BF4E30",
     "#3182CE",
+    "#805AD5",
+    "#DD6B20",
+    "#0BC5EA",
   ];
 
+  const activeNodeData = nodes.find((n) => n.id === activeNode);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 p-3 sm:p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
+    <div
+      className={`min-h-screen ${
+        theme === "dark" ? "bg-gray-900" : "bg-gray-50"
+      } p-4`}
+    >
+      <div className="max-w-8xl">
         {/* Header */}
-        <div className="mb-4 sm:mb-6 text-center">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-[#F05A5B] to-[#BF4E30] bg-clip-text text-transparent">
-            MindMapX Pro{" "}
-            {import.meta.env.VITE_OPENAI_API_KEY ? "(AI-Powered)" : ""}
+        <div className="mb-6 text-center">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#F05A5B] to-[#BF4E30] bg-clip-text text-transparent">
+            MindMapX Pro
           </h1>
-          <p className="text-gray-300 text-sm sm:text-base mt-1 sm:mt-2">
+          <p
+            className={`mt-2 ${
+              theme === "dark" ? "text-gray-300" : "text-gray-600"
+            }`}
+          >
             Visualize ideas, connect thoughts, and unlock creativity
           </p>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
-          {/* Controls Panel */}
-          <MindMapControls
-            gameState={gameState}
-            showInstructions={showInstructions}
-            customNodeText={customNodeText}
-            setCustomNodeText={setCustomNodeText}
-            zoomLevel={zoomLevel}
-            setZoomLevel={setZoomLevel}
-            nodes={nodes}
-            edges={edges}
-            activeNode={activeNode}
-            colorPalette={colorPalette}
-            nodeColors={nodeColors}
-            onStartMindMap={startMindMap}
-            onAddCustomNode={addCustomNode}
-            onUpdateColorScheme={updateColorScheme}
-            onExportAsImage={exportAsImage}
-            onExportAsJSON={exportAsJSON}
-            onResetMindMap={resetMindMap}
-            onFinishMindMap={finishMindMap}
-          />
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left Panel */}
+          <div className="lg:w-80 flex flex-col gap-6">
+            <MindMapControls
+              gameState={gameState}
+              showInstructions={showInstructions}
+              customNodeText={customNodeText}
+              setCustomNodeText={setCustomNodeText}
+              zoomLevel={zoomLevel}
+              setZoomLevel={setZoomLevel}
+              nodes={nodes}
+              edges={edges}
+              activeNode={activeNode}
+              colorPalette={colorPalette}
+              nodeColors={nodeColors}
+              theme={theme}
+              onToggleTheme={toggleTheme}
+              onStartMindMap={startMindMap}
+              onAddCustomNode={addCustomNode}
+              onAddNodeFromSuggestion={addNodeFromSuggestion}
+              onUpdateColorScheme={updateColorScheme}
+              onExportAsImage={exportAsImage}
+              onExportAsJSON={exportAsJSON}
+              onImportFromJSON={importFromJSON}
+              onResetMindMap={resetMindMap}
+              onFinishMindMap={finishMindMap}
+              onToggleNodeExpand={toggleNodeExpand}
+              onDrillDown={drillDown}
+              onDrillUp={drillUp}
+              onFitView={fitView}
+            />
 
-          {/* Main Content Area */}
-          <div className="flex-1 flex flex-col gap-4 sm:gap-6">
-            {/* Suggestions Panel */}
-            {gameState === "playing" && activeNode && showSuggestions && (
-              <SuggestionsPanel
-                activeNode={activeNode}
-                nodes={nodes}
-                suggestions={suggestions}
-                isGeneratingSuggestions={isGeneratingSuggestions}
-                onAddNode={addNode}
-              />
+            {/* Suggestions */}
+            {gameState === "playing" && activeNode && (
+              <div
+                className={`rounded-lg border p-4 ${
+                  theme === "dark"
+                    ? "bg-gray-800 border-gray-700"
+                    : "bg-white border-gray-200"
+                }`}
+              >
+                <h3
+                  className={`font-semibold mb-3 ${
+                    theme === "dark" ? "text-gray-200" : "text-gray-800"
+                  }`}
+                >
+                  Suggestions for "{activeNodeData?.text}"
+                </h3>
+                <div className="space-y-2">
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => addNodeFromSuggestion(suggestion)}
+                      className={`w-full text-left p-3 rounded transition-all ${
+                        theme === "dark"
+                          ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
+                          : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        <span>{suggestion}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
+          </div>
 
-            {/* Mind Map Visualization */}
+          {/* Main Content */}
+          <div className="flex-1 flex flex-col gap-6 w-2">
             <MindMapVisualization
               ref={svgRef}
               containerRef={containerRef as RefObject<HTMLDivElement>}
@@ -630,115 +894,218 @@ const MindMap: React.FC = () => {
               activeNode={activeNode}
               draggedNode={draggedNode}
               zoomLevel={zoomLevel}
+              panPosition={panPosition}
               gameState={gameState}
               nodeColors={nodeColors}
-              isMobile={isMobile}
+              theme={theme}
+              isMobile={false}
               onNodeClick={handleNodeClick}
+              onNodeContextMenu={handleNodeContextMenu}
               onNodeDragStart={handleNodeDragStart}
               onNodeDragEnd={handleNodeDragEnd}
               onEditNode={editNode}
+              onDeleteNode={deleteNode}
+              onPanView={panView}
             />
 
-            {/* Footer Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-800/50 hover:scale-[1.02] transition-all duration-300">
-                <div className="p-2 sm:p-3 rounded-lg bg-gradient-to-r from-[#F05A5B] to-[#BF4E30]">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                    <line x1="12" y1="16" x2="12.01" y2="8"></line>
-                  </svg>
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div
+                className={`p-4 rounded-lg ${
+                  theme === "dark" ? "bg-gray-800" : "bg-white"
+                } border ${
+                  theme === "dark" ? "border-gray-700" : "border-gray-200"
+                }`}
+              >
+                <div className="text-2xl font-bold text-[#F05A5B]">
+                  {nodes.length}
                 </div>
-                <div>
-                  <div className="text-xl sm:text-2xl font-bold text-[#F05A5B]">
-                    {nodes.length}
-                  </div>
-                  <div className="text-xs text-gray-400">Total Nodes</div>
+                <div
+                  className={`text-sm ${
+                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  }`}
+                >
+                  Total Nodes
                 </div>
               </div>
-
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-800/50 hover:scale-[1.02] transition-all duration-300">
-                <div className="p-2 sm:p-3 rounded-lg bg-gradient-to-r from-[#F05A5B] to-[#BF4E30]">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4 12h16"></path>
-                    <path d="M13 5l7 7-7 7"></path>
-                  </svg>
+              <div
+                className={`p-4 rounded-lg ${
+                  theme === "dark" ? "bg-gray-800" : "bg-white"
+                } border ${
+                  theme === "dark" ? "border-gray-700" : "border-gray-200"
+                }`}
+              >
+                <div className="text-2xl font-bold text-[#4A90E2]">
+                  {edges.length}
                 </div>
-                <div>
-                  <div className="text-xl sm:text-2xl font-bold text-[#F05A5B]">
-                    {edges.length}
-                  </div>
-                  <div className="text-xs text-gray-400">Connections</div>
+                <div
+                  className={`text-sm ${
+                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  }`}
+                >
+                  Connections
                 </div>
               </div>
-
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-800/50 hover:scale-[1.02] transition-all duration-300">
-                <div className="p-2 sm:p-3 rounded-lg bg-gradient-to-r from-[#F05A5B] to-[#BF4E30]">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 2v4"></path>
-                    <path d="m16 5-3 3"></path>
-                    <path d="M18 11h4"></path>
-                    <path d="m21 15-3 3"></path>
-                    <path d="M12 18v4"></path>
-                    <path d="m8 21 3-3"></path>
-                    <path d="M6 13H2"></path>
-                    <path d="m3 9 3-3"></path>
-                  </svg>
+              <div
+                className={`p-4 rounded-lg ${
+                  theme === "dark" ? "bg-gray-800" : "bg-white"
+                } border ${
+                  theme === "dark" ? "border-gray-700" : "border-gray-200"
+                }`}
+              >
+                <div className="text-2xl font-bold text-[#38A169]">
+                  {Math.max(
+                    ...nodes.map((n) => {
+                      let depth = 0;
+                      let node = n;
+                      while (node.parent) {
+                        depth++;
+                        node = nodes.find((nn) => nn.id === node.parent)!;
+                      }
+                      return depth;
+                    })
+                  ) + 1}
                 </div>
-                <div>
-                  <div className="text-xl sm:text-2xl font-bold text-[#F05A5B]">
-                    {nodes.length > 1 ? Math.floor(nodes.length / 2) : 1}
-                  </div>
-                  <div className="text-xs text-gray-400">Depth Levels</div>
+                <div
+                  className={`text-sm ${
+                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  }`}
+                >
+                  Max Depth
+                </div>
+              </div>
+              <div
+                className={`p-4 rounded-lg ${
+                  theme === "dark" ? "bg-gray-800" : "bg-white"
+                } border ${
+                  theme === "dark" ? "border-gray-700" : "border-gray-200"
+                }`}
+              >
+                <div className="text-2xl font-bold text-[#ED8936]">
+                  {nodes.filter((n) => n.expanded).length}
+                </div>
+                <div
+                  className={`text-sm ${
+                    theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  }`}
+                >
+                  Expanded
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Node Details */}
+          {nodeDetailsOpen && activeNodeData && (
+            <NodeDetailsPanel
+              node={activeNodeData}
+              isOpen={nodeDetailsOpen}
+              onClose={() => setNodeDetailsOpen(false)}
+              onEdit={() => editNode(activeNodeData.id)}
+              onDelete={() => deleteNode(activeNodeData.id)}
+              onToggleExpand={() => toggleNodeExpand(activeNodeData.id)}
+              onDrillDown={() => drillDown(activeNodeData.id)}
+              onDrillUp={activeNodeData.parent ? () => drillUp() : undefined}
+              theme={theme}
+            />
+          )}
         </div>
       </div>
 
-      {/* Edit Node Dialog */}
+      {/* Edit Dialog */}
       <EditNodeDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         editingNode={editingNode}
         editText={editText}
         editColor={editColor}
+        editDescription={editDescription}
+        editSize={editSize}
+        editShape={editShape}
         colorPalette={colorPalette}
         onEditTextChange={setEditText}
         onEditColorChange={setEditColor}
+        onEditDescriptionChange={setEditDescription}
+        onEditSizeChange={setEditSize}
+        onEditShapeChange={setEditShape}
         onSave={saveEditedNode}
+        theme={theme}
       />
+
+      {/* Context Menu */}
+      {showContextMenu && (
+        <div
+          className="fixed z-50"
+          style={{ left: showContextMenu.x, top: showContextMenu.y }}
+          onClick={() => setShowContextMenu(null)}
+        >
+          <div
+            className={`rounded-lg border shadow-lg p-2 min-w-[200px] ${
+              theme === "dark"
+                ? "bg-gray-800 border-gray-700"
+                : "bg-white border-gray-200"
+            }`}
+          >
+            <button
+              onClick={() => {
+                editNode(showContextMenu.nodeId);
+                setShowContextMenu(null);
+              }}
+              className={`w-full text-left px-4 py-2 rounded ${
+                theme === "dark"
+                  ? "text-gray-200 hover:bg-gray-700"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              Edit Node
+            </button>
+            <button
+              onClick={() => {
+                toggleNodeExpand(showContextMenu.nodeId);
+                setShowContextMenu(null);
+              }}
+              className={`w-full text-left px-4 py-2 rounded ${
+                theme === "dark"
+                  ? "text-gray-200 hover:bg-gray-700"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              {nodes.find((n) => n.id === showContextMenu.nodeId)?.expanded
+                ? "Collapse"
+                : "Expand"}
+            </button>
+            <button
+              onClick={() => {
+                drillDown(showContextMenu.nodeId);
+                setShowContextMenu(null);
+              }}
+              className={`w-full text-left px-4 py-2 rounded ${
+                theme === "dark"
+                  ? "text-gray-200 hover:bg-gray-700"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+              disabled={
+                !nodes.find((n) => n.id === showContextMenu.nodeId)?.children
+                  ?.length
+              }
+            >
+              Drill Down
+            </button>
+            <div className="border-t border-gray-600 my-1"></div>
+            <button
+              onClick={() => {
+                deleteNode(showContextMenu.nodeId);
+                setShowContextMenu(null);
+              }}
+              className={`w-full text-left px-4 py-2 rounded text-red-500 hover:bg-red-50 ${
+                theme === "dark" ? "hover:bg-red-900/20" : ""
+              }`}
+            >
+              Delete Node
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
