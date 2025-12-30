@@ -432,7 +432,7 @@ const MindMapVisualization = forwardRef<
       >
         <div
           ref={containerRef}
-          className="relative w-full h-full overflow-auto"
+          className="relative h-full"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}

@@ -24,7 +24,15 @@ interface Node {
   parent?: string;
   data?: NodeData;
   size?: "small" | "medium" | "large";
-  shape?: "rectangle" | "circle" | "rounded" | "diamond" | "hexagon" | "octagon" | "triangle" | "oval";
+  shape?:
+    | "rectangle"
+    | "circle"
+    | "rounded"
+    | "diamond"
+    | "hexagon"
+    | "octagon"
+    | "triangle"
+    | "oval";
 }
 
 interface Edge {
@@ -177,7 +185,14 @@ const MindMap: React.FC = () => {
     "medium"
   );
   const [editShape, setEditShape] = useState<
-    "rectangle" | "circle" | "rounded" | "diamond" | "hexagon" | "octagon" | "triangle" | "oval"
+    | "rectangle"
+    | "circle"
+    | "rounded"
+    | "diamond"
+    | "hexagon"
+    | "octagon"
+    | "triangle"
+    | "oval"
   >("rectangle");
   const [nodeDetailsOpen, setNodeDetailsOpen] = useState(true);
   const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
@@ -797,26 +812,18 @@ const MindMap: React.FC = () => {
     <div
       className={`min-h-screen ${
         theme === "dark" ? "bg-gray-900" : "bg-gray-50"
-      } p-4`}
+      } p-4 md:p-6`}
     >
-      <div className="max-w-8xl">
-        {/* Header */}
-        <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#F05A5B] to-[#BF4E30] bg-clip-text text-transparent">
-            MindMapX Pro
-          </h1>
-          <p
-            className={`mt-2 ${
-              theme === "dark" ? "text-gray-300" : "text-gray-600"
+      <div className="max-w-[1920px] mx-auto">
+        {/* Top Controls Panel */}
+        <div className="mb-6">
+          <div
+            className={`rounded-lg border p-4 ${
+              theme === "dark"
+                ? "bg-gray-800 border-gray-700"
+                : "bg-white border-gray-200"
             }`}
           >
-            Visualize ideas, connect thoughts, and unlock creativity
-          </p>
-        </div>
-
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Left Panel */}
-          <div className="lg:w-80 flex flex-col gap-6">
             <MindMapControls
               gameState={gameState}
               showInstructions={showInstructions}
@@ -845,11 +852,17 @@ const MindMap: React.FC = () => {
               onDrillUp={drillUp}
               onFitView={fitView}
             />
+          </div>
+        </div>
 
-            {/* Suggestions */}
+        {/* Main Content Area - Side by Side Layout */}
+        <div className="flex flex-col lg:flex-row gap-4 md:gap-6">
+          {/* Visualization Section */}
+          <div className="flex-1 flex flex-col gap-4 md:gap-6">
+            {/* Suggestions for mobile/tablet */}
             {gameState === "playing" && activeNode && (
               <div
-                className={`rounded-lg border p-4 ${
+                className={`lg:hidden rounded-lg border p-4 ${
                   theme === "dark"
                     ? "bg-gray-800 border-gray-700"
                     : "bg-white border-gray-200"
@@ -882,10 +895,8 @@ const MindMap: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Main Content */}
-          <div className="flex-1 flex flex-col gap-6 w-2">
+            {/* Mind Map Visualization */}
             <MindMapVisualization
               ref={svgRef}
               containerRef={containerRef as RefObject<HTMLDivElement>}
@@ -908,20 +919,20 @@ const MindMap: React.FC = () => {
               onPanView={panView}
             />
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
               <div
-                className={`p-4 rounded-lg ${
+                className={`p-3 md:p-4 rounded-lg ${
                   theme === "dark" ? "bg-gray-800" : "bg-white"
                 } border ${
                   theme === "dark" ? "border-gray-700" : "border-gray-200"
                 }`}
               >
-                <div className="text-2xl font-bold text-[#F05A5B]">
+                <div className="text-xl md:text-2xl font-bold text-[#F05A5B]">
                   {nodes.length}
                 </div>
                 <div
-                  className={`text-sm ${
+                  className={`text-xs md:text-sm ${
                     theme === "dark" ? "text-gray-400" : "text-gray-500"
                   }`}
                 >
@@ -929,17 +940,17 @@ const MindMap: React.FC = () => {
                 </div>
               </div>
               <div
-                className={`p-4 rounded-lg ${
+                className={`p-3 md:p-4 rounded-lg ${
                   theme === "dark" ? "bg-gray-800" : "bg-white"
                 } border ${
                   theme === "dark" ? "border-gray-700" : "border-gray-200"
                 }`}
               >
-                <div className="text-2xl font-bold text-[#4A90E2]">
+                <div className="text-xl md:text-2xl font-bold text-[#4A90E2]">
                   {edges.length}
                 </div>
                 <div
-                  className={`text-sm ${
+                  className={`text-xs md:text-sm ${
                     theme === "dark" ? "text-gray-400" : "text-gray-500"
                   }`}
                 >
@@ -947,13 +958,13 @@ const MindMap: React.FC = () => {
                 </div>
               </div>
               <div
-                className={`p-4 rounded-lg ${
+                className={`p-3 md:p-4 rounded-lg ${
                   theme === "dark" ? "bg-gray-800" : "bg-white"
                 } border ${
                   theme === "dark" ? "border-gray-700" : "border-gray-200"
                 }`}
               >
-                <div className="text-2xl font-bold text-[#38A169]">
+                <div className="text-xl md:text-2xl font-bold text-[#38A169]">
                   {Math.max(
                     ...nodes.map((n) => {
                       let depth = 0;
@@ -967,7 +978,7 @@ const MindMap: React.FC = () => {
                   ) + 1}
                 </div>
                 <div
-                  className={`text-sm ${
+                  className={`text-xs md:text-sm ${
                     theme === "dark" ? "text-gray-400" : "text-gray-500"
                   }`}
                 >
@@ -975,17 +986,17 @@ const MindMap: React.FC = () => {
                 </div>
               </div>
               <div
-                className={`p-4 rounded-lg ${
+                className={`p-3 md:p-4 rounded-lg ${
                   theme === "dark" ? "bg-gray-800" : "bg-white"
                 } border ${
                   theme === "dark" ? "border-gray-700" : "border-gray-200"
                 }`}
               >
-                <div className="text-2xl font-bold text-[#ED8936]">
+                <div className="text-xl md:text-2xl font-bold text-[#ED8936]">
                   {nodes.filter((n) => n.expanded).length}
                 </div>
                 <div
-                  className={`text-sm ${
+                  className={`text-xs md:text-sm ${
                     theme === "dark" ? "text-gray-400" : "text-gray-500"
                   }`}
                 >
@@ -995,20 +1006,60 @@ const MindMap: React.FC = () => {
             </div>
           </div>
 
-          {/* Node Details */}
-          {nodeDetailsOpen && activeNodeData && (
-            <NodeDetailsPanel
-              node={activeNodeData}
-              isOpen={nodeDetailsOpen}
-              onClose={() => setNodeDetailsOpen(false)}
-              onEdit={() => editNode(activeNodeData.id)}
-              onDelete={() => deleteNode(activeNodeData.id)}
-              onToggleExpand={() => toggleNodeExpand(activeNodeData.id)}
-              onDrillDown={() => drillDown(activeNodeData.id)}
-              onDrillUp={activeNodeData.parent ? () => drillUp() : undefined}
-              theme={theme}
-            />
-          )}
+          {/* Right Side Panel */}
+          <div className="lg:w-80 flex flex-col gap-4 md:gap-6">
+            {/* Suggestions for desktop */}
+            {gameState === "playing" && activeNode && (
+              <div
+                className={`hidden lg:block rounded-lg border p-4 ${
+                  theme === "dark"
+                    ? "bg-gray-800 border-gray-700"
+                    : "bg-white border-gray-200"
+                }`}
+              >
+                <h3
+                  className={`font-semibold mb-3 ${
+                    theme === "dark" ? "text-gray-200" : "text-gray-800"
+                  }`}
+                >
+                  Suggestions for "{activeNodeData?.text}"
+                </h3>
+                <div className="space-y-2">
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => addNodeFromSuggestion(suggestion)}
+                      className={`w-full text-left p-3 rounded transition-all ${
+                        theme === "dark"
+                          ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
+                          : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        <span>{suggestion}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Node Details Panel */}
+            {nodeDetailsOpen && activeNodeData && (
+              <NodeDetailsPanel
+                node={activeNodeData}
+                isOpen={nodeDetailsOpen}
+                onClose={() => setNodeDetailsOpen(false)}
+                onEdit={() => editNode(activeNodeData.id)}
+                onDelete={() => deleteNode(activeNodeData.id)}
+                onToggleExpand={() => toggleNodeExpand(activeNodeData.id)}
+                onDrillDown={() => drillDown(activeNodeData.id)}
+                onDrillUp={activeNodeData.parent ? () => drillUp() : undefined}
+                theme={theme}
+              />
+            )}
+          </div>
         </div>
       </div>
 
